@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  OWNER
+  EMPLOYEE
+}
+
+enum SiteStatus {
+  ACTIVE
+  COMPLETED
+  ON_HOLD
+}
+
+enum WalletTxnType {
+  TOPUP
+  EXPENSE
+  TRANSFER_OUT
+  TRANSFER_IN
+  VENDOR_PAYMENT
+  REVERSAL
+}
+
+enum Direction {
+  CREDIT
+  DEBIT
+}
+
+enum ExpenseCategory {
+  MATERIALS
+  LABOR
+  TRANSPORT
+  FOOD
+  MISC
+  OTHER
+}
+
+enum IncomeType {
+  ADVANCE
+  RUNNING_BILL
+  FINAL
+  RETENTION
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  passwordHash String
+  name         String
+  role         Role
+  joinedAt     DateTime  @default(now())
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  walletTransactionsAsActor        WalletTransaction[] @relation("ActorTransactions")
+  walletTransactionsAsLogger       WalletTransaction[] @relation("LoggedTransactions")
+  walletTransactionsAsCounterparty WalletTransaction[] @relation("CounterpartyTransactions")
+  walletTransactionsAsVoider       WalletTransaction[] @relation("VoidedTransactions")
+  purchasesAsPayer                 Purchase[]          @relation("PayerPurchases")
+  purchasesAsLogger                Purchase[]          @relation("LoggedPurchases")
+  purchasesAsVoider                Purchase[]          @relation("VoidedPurchases")
+  transfersAsLogger                MaterialTransfer[]  @relation("LoggedTransfers")
+  transfersAsVoider                MaterialTransfer[]  @relation("VoidedTransfers")
+  siteIncomesAsLogger              SiteIncome[]        @relation("LoggedIncomes")
+  siteIncomesAsVoider              SiteIncome[]        @relation("VoidedIncomes")
+}
+
+model Site {
+  id                 String     @id @default(cuid())
+  name               String
+  location           String
+  clientName         String
+  contractValuePaise BigInt
+  startDate          DateTime
+  expectedEndDate    DateTime?
+  status             SiteStatus @default(ACTIVE)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  walletTransactions WalletTransaction[]
+  purchases          Purchase[]         @relation("DestinationPurchases")
+  transfersIn        MaterialTransfer[] @relation("ToTransfers")
+  transfersOut       MaterialTransfer[] @relation("FromTransfers")
+  incomes            SiteIncome[]
+}
+
+model Vendor {
+  id           String   @id @default(cuid())
+  name         String
+  contactPhone String?
+  gstin        String?
+  address      String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  purchases Purchase[]
+}
+
+model WalletTransaction {
+  id                 String          @id @default(cuid())
+  actorUserId        String
+  actor              User            @relation("ActorTransactions", fields: [actorUserId], references: [id])
+  loggedById         String
+  loggedBy           User            @relation("LoggedTransactions", fields: [loggedById], references: [id])
+  type               WalletTxnType
+  direction          Direction
+  amountPaise        BigInt
+  siteId             String?
+  site               Site?           @relation(fields: [siteId], references: [id])
+  counterpartyUserId String?
+  counterparty       User?           @relation("CounterpartyTransactions", fields: [counterpartyUserId], references: [id])
+  category           ExpenseCategory?
+  note               String?
+  billPhotoUrl       String?
+  billPhotoPublicId  String?
+  relatedPurchaseId  String?
+  relatedTransferId  String?
+  voidedAt           DateTime?
+  voidedById         String?
+  voidedBy           User?           @relation("VoidedTransactions", fields: [voidedById], references: [id])
+  createdAt          DateTime        @default(now())
+
+  @@index([actorUserId])
+  @@index([siteId])
+  @@index([createdAt])
+}
+
+model Purchase {
+  id                String   @id @default(cuid())
+  vendorId          String
+  vendor            Vendor   @relation(fields: [vendorId], references: [id])
+  itemName          String
+  quantity          Decimal  @db.Decimal(14, 4)
+  unit              String
+  ratePaise         BigInt
+  discountPercent   Decimal  @default(0) @db.Decimal(5, 2)
+  gstPercent        Decimal  @default(0) @db.Decimal(5, 2)
+  totalPaise        BigInt
+  destinationSiteId String?
+  destinationSite   Site?    @relation("DestinationPurchases", fields: [destinationSiteId], references: [id])
+  paidByUserId      String?
+  paidBy            User?    @relation("PayerPurchases", fields: [paidByUserId], references: [id])
+  purchaseDate      DateTime
+  billPhotoUrl      String?
+  billPhotoPublicId String?
+  note              String?
+  loggedById        String
+  loggedBy          User     @relation("LoggedPurchases", fields: [loggedById], references: [id])
+  voidedAt          DateTime?
+  voidedById        String?
+  voidedBy          User?    @relation("VoidedPurchases", fields: [voidedById], references: [id])
+  createdAt         DateTime @default(now())
+
+  @@index([destinationSiteId])
+  @@index([vendorId])
+}
+
+model MaterialTransfer {
+  id             String   @id @default(cuid())
+  fromSiteId     String?
+  fromSite       Site?    @relation("FromTransfers", fields: [fromSiteId], references: [id])
+  toSiteId       String
+  toSite         Site     @relation("ToTransfers", fields: [toSiteId], references: [id])
+  itemName       String
+  quantity       Decimal  @db.Decimal(14, 4)
+  unit           String
+  costMovedPaise BigInt
+  transferDate   DateTime
+  note           String?
+  loggedById     String
+  loggedBy       User     @relation("LoggedTransfers", fields: [loggedById], references: [id])
+  voidedAt       DateTime?
+  voidedById     String?
+  voidedBy       User?    @relation("VoidedTransfers", fields: [voidedById], references: [id])
+  createdAt      DateTime @default(now())
+
+  @@index([fromSiteId])
+  @@index([toSiteId])
+}
+
+model SiteIncome {
+  id           String     @id @default(cuid())
+  siteId       String
+  site         Site       @relation(fields: [siteId], references: [id])
+  amountPaise  BigInt
+  receivedDate DateTime
+  type         IncomeType
+  note         String?
+  loggedById   String
+  loggedBy     User       @relation("LoggedIncomes", fields: [loggedById], references: [id])
+  voidedAt     DateTime?
+  voidedById   String?
+  voidedBy     User?      @relation("VoidedIncomes", fields: [voidedById], references: [id])
+  createdAt    DateTime   @default(now())
+
+  @@index([siteId, receivedDate])
+}
