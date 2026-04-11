@@ -6,11 +6,12 @@ import { getCashWithTeam } from "@/lib/wallet";
 import { getSites } from "@/lib/sites";
 import { formatINR } from "@/lib/money";
 import { db } from "@/lib/db";
-import { getBatchSiteSpend, getBatchSiteIncome } from "@/lib/site-financials";
+import { getBatchSiteSpend } from "@/lib/site-financials";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CreateSiteDialog } from "@/components/sites/create-site-dialog";
+import { OnboardingChecklist } from "@/components/onboarding/onboarding-checklist";
 
 async function getDashboardStats() {
   const now = new Date();
@@ -60,10 +61,11 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  let user: { name: string; role: string };
+  let user: { id: string; name: string; role: string; onboardingDismissedAt: Date | null };
   try {
-    const u = await getCurrentUser();
-    user = { name: u.name, role: u.role };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const u = await getCurrentUser() as any;
+    user = { id: u.id, name: u.name, role: u.role, onboardingDismissedAt: u.onboardingDismissedAt ?? null };
   } catch {
     redirect("/login");
   }
@@ -72,6 +74,24 @@ export default async function DashboardPage() {
     getDashboardStats(),
     getSites(),
   ]);
+
+  // Onboarding checklist — show only for owners who haven't dismissed it
+  let showOnboarding = false;
+  let onboardingState = { hasSite: false, hasEmployee: false, hasTopUp: false };
+
+  if (user.role === "OWNER" && !user.onboardingDismissedAt) {
+    const [siteCount, employeeCount, topUpCount] = await Promise.all([
+      db.site.count(),
+      db.user.count({ where: { role: "EMPLOYEE" } }),
+      db.walletTransaction.count({ where: { type: "TOPUP" } }),
+    ]);
+    showOnboarding = true;
+    onboardingState = {
+      hasSite: siteCount > 0,
+      hasEmployee: employeeCount > 0,
+      hasTopUp: topUpCount > 0,
+    };
+  }
 
   const topSites = allSites.slice(0, 5);
 
@@ -122,6 +142,15 @@ export default async function DashboardPage() {
           })}
         </p>
       </div>
+
+      {/* Onboarding checklist */}
+      {showOnboarding && (
+        <OnboardingChecklist
+          hasSite={onboardingState.hasSite}
+          hasEmployee={onboardingState.hasEmployee}
+          hasTopUp={onboardingState.hasTopUp}
+        />
+      )}
 
       {/* Budget warning alerts */}
       {budgetWarnings.length > 0 && (

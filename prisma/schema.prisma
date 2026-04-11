@@ -60,9 +60,10 @@ model User {
   role         Role
   joinedAt     DateTime  @default(now())
   isActive     Boolean   @default(true)
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  lastLoginAt              DateTime?
+  onboardingDismissedAt    DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   walletTransactionsAsActor        WalletTransaction[] @relation("ActorTransactions")
   walletTransactionsAsLogger       WalletTransaction[] @relation("LoggedTransactions")
