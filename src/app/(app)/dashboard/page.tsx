@@ -63,8 +63,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default async function DashboardPage() {
   let user: { id: string; name: string; role: string; onboardingDismissedAt: Date | null };
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const u = await getCurrentUser() as any;
+    const u = await getCurrentUser();
     user = { id: u.id, name: u.name, role: u.role, onboardingDismissedAt: u.onboardingDismissedAt ?? null };
   } catch {
     redirect("/login");
