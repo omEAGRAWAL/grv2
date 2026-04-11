@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Building2, Wallet, TrendingUp } from "lucide-react";
+import { Building2, Wallet, TrendingUp, AlertTriangle, AlertCircle } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getCashWithTeam } from "@/lib/wallet";
 import { getSites } from "@/lib/sites";
 import { formatINR } from "@/lib/money";
 import { db } from "@/lib/db";
+import { getBatchSiteSpend, getBatchSiteIncome } from "@/lib/site-financials";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,6 @@ async function getDashboardStats() {
         _sum: { amountPaise: true },
         where: { createdAt: { gte: startOfMonth }, voidedAt: null },
       }),
-      // Wallet-paid expenses + vendor payments
       db.walletTransaction.aggregate({
         _sum: { amountPaise: true },
         where: {
@@ -33,7 +33,6 @@ async function getDashboardStats() {
           voidedAt: null,
         },
       }),
-      // Owner-direct purchases (no wallet transaction created for these)
       db.purchase.aggregate({
         _sum: { totalPaise: true },
         where: {
@@ -48,7 +47,6 @@ async function getDashboardStats() {
     activeSiteCount,
     cashWithTeam,
     monthlyIn: incomeAgg._sum.amountPaise ?? 0n,
-    // Total "out" = wallet debits + owner-direct purchases
     monthlyOut:
       (walletOutAgg._sum.amountPaise ?? 0n) +
       (ownerDirectPurchaseAgg._sum.totalPaise ?? 0n),
@@ -70,11 +68,44 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const [stats, recentSites] = await Promise.all([
+  const [stats, allSites] = await Promise.all([
     getDashboardStats(),
     getSites(),
   ]);
-  const topSites = recentSites.slice(0, 5);
+
+  const topSites = allSites.slice(0, 5);
+
+  // Budget warnings — only for owners, only ACTIVE sites
+  type BudgetWarning = {
+    siteId: string;
+    siteName: string;
+    pct: number;
+    overrun: boolean;
+  };
+  let budgetWarnings: BudgetWarning[] = [];
+
+  if (user.role === "OWNER") {
+    const activeSites = allSites.filter((s) => s.status === "ACTIVE");
+    if (activeSites.length > 0) {
+      const siteIds = activeSites.map((s) => s.id);
+      const spendMap = await getBatchSiteSpend(siteIds);
+      for (const site of activeSites) {
+        const spent = spendMap.get(site.id) ?? 0n;
+        const contract = site.contractValuePaise;
+        if (contract <= 0n) continue;
+        const pct = Number((spent * 10000n) / contract) / 100;
+        if (pct >= 80) {
+          budgetWarnings.push({
+            siteId: site.id,
+            siteName: site.name,
+            pct,
+            overrun: pct > 100,
+          });
+        }
+      }
+      budgetWarnings.sort((a, b) => b.pct - a.pct);
+    }
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
@@ -91,6 +122,31 @@ export default async function DashboardPage() {
           })}
         </p>
       </div>
+
+      {/* Budget warning alerts */}
+      {budgetWarnings.length > 0 && (
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 space-y-1.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-yellow-800 mb-2">
+            Budget Alerts
+          </p>
+          {budgetWarnings.map((w) => (
+            <Link
+              key={w.siteId}
+              href={`/sites/${w.siteId}`}
+              className="flex items-center gap-2 text-sm hover:underline"
+            >
+              {w.overrun ? (
+                <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+              ) : (
+                <AlertTriangle className="h-4 w-4 text-yellow-600 shrink-0" />
+              )}
+              <span className={w.overrun ? "text-red-700 font-medium" : "text-yellow-800"}>
+                {w.siteName} is at {w.pct.toFixed(1)}% of budget
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -180,13 +236,13 @@ export default async function DashboardPage() {
                 </Badge>
               </Link>
             ))}
-            {recentSites.length > 5 && (
+            {allSites.length > 5 && (
               <div className="px-4 py-2 text-center">
                 <Link
                   href="/sites"
                   className="text-xs text-muted-foreground underline underline-offset-2"
                 >
-                  View all {recentSites.length} sites →
+                  View all {allSites.length} sites →
                 </Link>
               </div>
             )}
@@ -197,6 +253,9 @@ export default async function DashboardPage() {
       {/* Quick links */}
       {user.role === "OWNER" && (
         <div className="flex justify-end gap-2">
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/reports">Reports →</Link>
+          </Button>
           <Button asChild variant="ghost" size="sm">
             <Link href="/vendors">Vendors →</Link>
           </Button>
