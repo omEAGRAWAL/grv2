@@ -10,6 +10,7 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "seed:owner": "tsx scripts/create-owner.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
     "prisma": "prisma"
   },
   "dependencies": {
