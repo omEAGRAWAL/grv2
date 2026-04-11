@@ -1,10 +1,19 @@
 import type { User } from "@prisma/client";
 
-/**
- * Phase 0 stub: check whether a user can perform an action.
- * Currently grants all permissions to OWNER, none to EMPLOYEE.
- * Will be expanded with granular per-action rules in later phases.
- */
-export function canPerform(user: User, _action: string): boolean {
-  return user.role === "OWNER";
+type Action =
+  | "CREATE_SITE"
+  | "EDIT_SITE"
+  | "TOP_UP_WALLET"
+  | "VIEW_ALL_BALANCES";
+
+export function canPerform(user: User, action: Action): boolean {
+  switch (action) {
+    case "CREATE_SITE":
+    case "EDIT_SITE":
+    case "TOP_UP_WALLET":
+    case "VIEW_ALL_BALANCES":
+      return user.role === "OWNER";
+    default:
+      return false;
+  }
 }

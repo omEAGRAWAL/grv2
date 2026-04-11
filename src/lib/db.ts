@@ -1,8 +1,11 @@
-import { Pool, neonConfig } from "@neondatabase/serverless";
+import { neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "@prisma/client";
 import ws from "ws";
 
+// The WebSocket constructor is required for PrismaNeon (WebSocket mode) so that
+// interactive transactions (db.$transaction with a callback) work.
+// PrismaNeonHTTP (HTTP mode) does not support interactive transactions.
 neonConfig.webSocketConstructor = ws;
 
 const globalForPrisma = globalThis as unknown as {
@@ -14,8 +17,8 @@ function createPrismaClient() {
   if (!connectionString) {
     throw new Error("DATABASE_URL environment variable is not set");
   }
-  const pool = new Pool({ connectionString });
-  const adapter = new PrismaNeon(pool);
+  // Pass PoolConfig — PrismaNeon creates the pool internally
+  const adapter = new PrismaNeon({ connectionString });
   return new PrismaClient({ adapter });
 }
 
