@@ -154,6 +154,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
       <WalletHistorySection
         userId={employee.id}
         basePath={`/employees/${employee.id}`}
+        isOwner={true}
         page={page}
         type={sp.type}
         from={sp.from}

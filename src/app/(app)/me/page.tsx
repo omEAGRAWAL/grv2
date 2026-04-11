@@ -165,6 +165,7 @@ export default async function MePage({ searchParams }: Props) {
       <WalletHistorySection
         userId={user.id}
         basePath="/me"
+        isOwner={user.role === "OWNER"}
         page={page}
         type={sp.type}
         from={sp.from}

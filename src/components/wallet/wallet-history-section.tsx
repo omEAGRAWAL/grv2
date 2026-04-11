@@ -3,14 +3,17 @@ import type { WalletTxnType } from "@prisma/client";
 import { db } from "@/lib/db";
 import { formatINR } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { UserBadge } from "@/components/user-badge";
 import { WalletFilters } from "./wallet-filters";
+import { VoidWalletTxnButton } from "./void-wallet-txn-button";
 
 const ITEMS_PER_PAGE = 20;
 
 type Props = {
   userId: string;
   basePath: string;
+  isOwner: boolean;
   page?: number;
   type?: string;
   from?: string;
@@ -64,21 +67,19 @@ function buildPaginationUrl(
 export async function WalletHistorySection({
   userId,
   basePath,
+  isOwner,
   page = 1,
   type,
   from,
   to,
 }: Props) {
-  // Build the where clause safely
+  // Build the where clause — show ALL rows (including voided)
   const whereClause: {
     actorUserId: string;
-    voidedAt: null;
     type?: WalletTxnType;
     createdAt?: { gte?: Date; lte?: Date };
-  } = {
-    actorUserId: userId,
-    voidedAt: null,
-  };
+  } = { actorUserId: userId };
+
   if (type && type !== "ALL") whereClause.type = type as WalletTxnType;
   if (from || to) {
     whereClause.createdAt = {};
@@ -130,69 +131,85 @@ export async function WalletHistorySection({
       ) : (
         <div className="rounded-lg border overflow-hidden">
           <div className="divide-y">
-            {txns.map((txn) => (
-              <div
-                key={txn.id}
-                className="px-4 py-3 flex items-start gap-3 text-sm"
-              >
-                {/* Date */}
-                <div className="w-28 shrink-0 text-xs text-muted-foreground pt-0.5">
-                  {formatTxnDate(txn.createdAt)}
-                </div>
-
-                {/* Type badge */}
-                <div className="shrink-0 pt-0.5">
-                  <span
-                    className={cn(
-                      "inline-block rounded-full px-2 py-0.5 text-xs font-medium",
-                      TYPE_CLASSES[txn.type] ?? "bg-gray-100 text-gray-600"
-                    )}
-                  >
-                    {TYPE_LABELS[txn.type] ?? txn.type}
-                  </span>
-                </div>
-
-                {/* Details */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {txn.site && (
-                      <span className="text-muted-foreground text-xs">
-                        {txn.site.name}
-                      </span>
-                    )}
-                    {txn.counterparty && (
-                      <span className="text-muted-foreground text-xs">
-                        · {txn.counterparty.name}
-                      </span>
-                    )}
-                    {txn.note && (
-                      <span className="text-muted-foreground text-xs truncate max-w-[200px]">
-                        {txn.site || txn.counterparty ? "· " : ""}
-                        {txn.note}
-                      </span>
-                    )}
-                  </div>
-                  {txn.loggedById !== txn.actorUserId && (
-                    <div className="mt-1">
-                      <UserBadge name={`by ${txn.loggedBy.name}`} />
-                    </div>
-                  )}
-                </div>
-
-                {/* Amount */}
+            {txns.map((txn) => {
+              const isVoided = txn.voidedAt !== null;
+              return (
                 <div
+                  key={txn.id}
                   className={cn(
-                    "shrink-0 font-medium tabular-nums",
-                    txn.direction === "CREDIT"
-                      ? "text-green-600"
-                      : "text-red-600"
+                    "px-4 py-3 flex items-start gap-3 text-sm",
+                    isVoided && "opacity-50"
                   )}
                 >
-                  {txn.direction === "CREDIT" ? "+" : "−"}
-                  {formatINR(txn.amountPaise)}
+                  {/* Date */}
+                  <div className="w-28 shrink-0 text-xs text-muted-foreground pt-0.5">
+                    {formatTxnDate(txn.createdAt)}
+                  </div>
+
+                  {/* Type badge */}
+                  <div className="shrink-0 pt-0.5 flex items-center gap-1.5">
+                    <span
+                      className={cn(
+                        "inline-block rounded-full px-2 py-0.5 text-xs font-medium",
+                        isVoided
+                          ? "bg-gray-100 text-gray-400 line-through"
+                          : (TYPE_CLASSES[txn.type] ?? "bg-gray-100 text-gray-600")
+                      )}
+                    >
+                      {TYPE_LABELS[txn.type] ?? txn.type}
+                    </span>
+                    {isVoided && (
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 border-gray-300 text-gray-400">
+                        VOIDED
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {txn.site && (
+                        <span className="text-muted-foreground text-xs">{txn.site.name}</span>
+                      )}
+                      {txn.counterparty && (
+                        <span className="text-muted-foreground text-xs">· {txn.counterparty.name}</span>
+                      )}
+                      {txn.note && (
+                        <span className={cn("text-muted-foreground text-xs truncate max-w-[200px]", isVoided && "line-through")}>
+                          {txn.site || txn.counterparty ? "· " : ""}
+                          {txn.note}
+                        </span>
+                      )}
+                    </div>
+                    {txn.loggedById !== txn.actorUserId && (
+                      <div className="mt-1">
+                        <UserBadge name={`by ${txn.loggedBy.name}`} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Amount */}
+                  <div
+                    className={cn(
+                      "shrink-0 font-medium tabular-nums",
+                      isVoided
+                        ? "text-muted-foreground line-through"
+                        : txn.direction === "CREDIT"
+                          ? "text-green-600"
+                          : "text-red-600"
+                    )}
+                  >
+                    {txn.direction === "CREDIT" ? "+" : "−"}
+                    {formatINR(txn.amountPaise)}
+                  </div>
+
+                  {/* Void button */}
+                  {isOwner && !isVoided && (
+                    <VoidWalletTxnButton txnId={txn.id} />
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

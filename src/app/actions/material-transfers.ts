@@ -139,3 +139,42 @@ export async function getAvailableMaterialAction(
   }
   return getAvailableMaterial(sourceId);
 }
+
+/**
+ * Void a material transfer (owner-only). No wallet impact — just marks voided.
+ */
+export async function voidMaterialTransfer(
+  id: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  let currentUser;
+  try {
+    currentUser = await requireOwner();
+  } catch {
+    return { success: false, error: "Only owners can void transfers" };
+  }
+
+  const transfer = await db.materialTransfer.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      fromSiteId: true,
+      toSiteId: true,
+      voidedAt: true,
+    },
+  });
+
+  if (!transfer) return { success: false, error: "Transfer not found" };
+  if (transfer.voidedAt) return { success: false, error: "Transfer already voided" };
+
+  await db.$transaction(async (tx) => {
+    await tx.materialTransfer.update({
+      where: { id },
+      data: { voidedAt: new Date(), voidedById: currentUser.id },
+    });
+  });
+
+  if (transfer.fromSiteId) revalidatePath(`/sites/${transfer.fromSiteId}`);
+  revalidatePath(`/sites/${transfer.toSiteId}`);
+  revalidatePath("/dashboard");
+  return { success: true };
+}
