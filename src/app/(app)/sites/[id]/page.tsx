@@ -1,10 +1,10 @@
 import { notFound, redirect } from "next/navigation";
-import { MapPin, User, CalendarDays, BadgeIndianRupee, Plus } from "lucide-react";
+import { MapPin, User, CalendarDays, BadgeIndianRupee, Plus, Download } from "lucide-react";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatINR, toRupees } from "@/lib/money";
-import { getSiteSpend } from "@/lib/site-financials";
+import { getSitePnL } from "@/lib/site-financials";
 import { getAvailableMaterial } from "@/lib/material";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,12 @@ const TYPE_LABELS: Record<string, string> = {
   VENDOR_PAYMENT: "Vendor Payment",
   REVERSAL: "Reversal",
 };
+const INCOME_TYPE_LABELS: Record<string, string> = {
+  ADVANCE: "Advance",
+  RUNNING_BILL: "Running Bill",
+  FINAL: "Final",
+  RETENTION: "Retention",
+};
 const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   MATERIALS: "Materials",
   LABOR: "Labor",
@@ -68,9 +74,11 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
   const site = await db.site.findUnique({ where: { id } });
   if (!site) notFound();
 
+  const isOwner = currentUser.role === "OWNER";
+
   // Fetch all data in parallel
   const [
-    totalSpent,
+    pnl,
     categoryBreakdown,
     txnCount,
     transactions,
@@ -79,11 +87,12 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
     recentPurchases,
     transfersIn,
     transfersOut,
+    incomes,
   ] = await Promise.all([
-    // getSiteSpend: accounts for wallet txns + owner-direct purchases + material transfers
-    getSiteSpend(id),
+    // Full P&L (received + spent + pnl + budgetUsedPercent)
+    getSitePnL(id, site.contractValuePaise),
 
-    // Category breakdown from wallet transactions only (purchases lack categories)
+    // Category breakdown from wallet transactions only
     db.walletTransaction.groupBy({
       by: ["category"],
       _sum: { amountPaise: true },
@@ -96,10 +105,12 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
       },
     }),
 
-    db.walletTransaction.count({ where: { siteId: id, voidedAt: null } }),
+    // Count ALL transactions (including voided) for display total
+    db.walletTransaction.count({ where: { siteId: id } }),
 
+    // Fetch ALL transactions including voided (show voided with strikethrough)
     db.walletTransaction.findMany({
-      where: { siteId: id, voidedAt: null },
+      where: { siteId: id },
       include: {
         actor: { select: { name: true } },
         loggedBy: { select: { name: true } },
@@ -112,10 +123,10 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
     // Material currently at this site
     getAvailableMaterial(id),
 
-    db.purchase.count({ where: { destinationSiteId: id, voidedAt: null } }),
+    db.purchase.count({ where: { destinationSiteId: id } }),
 
     db.purchase.findMany({
-      where: { destinationSiteId: id, voidedAt: null },
+      where: { destinationSiteId: id },
       include: {
         vendor: { select: { name: true } },
         paidBy: { select: { name: true } },
@@ -125,37 +136,45 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
     }),
 
     db.materialTransfer.findMany({
-      where: { toSiteId: id, voidedAt: null },
+      where: { toSiteId: id },
       include: { fromSite: { select: { name: true } } },
       orderBy: { transferDate: "desc" },
       take: 10,
     }),
 
     db.materialTransfer.findMany({
-      where: { fromSiteId: id, voidedAt: null },
+      where: { fromSiteId: id },
       include: { toSite: { select: { name: true } } },
       orderBy: { transferDate: "desc" },
       take: 10,
     }),
+
+    // Site income rows (all, including voided — shown with strikethrough)
+    db.siteIncome.findMany({
+      where: { siteId: id },
+      include: { loggedBy: { select: { name: true } } },
+      orderBy: { receivedDate: "desc" },
+    }),
   ]);
 
-  const budget = site.contractValuePaise;
-  const budgetPct = budget > 0n
-    ? Number((totalSpent * 10000n) / budget) / 100
-    : 0;
-  const budgetPctCapped = Math.min(budgetPct, 100);
-  const budgetOverrun = budgetPct > 100;
+  const { received, spent, pnl: pnlAmount, budgetUsedPercent } = pnl;
+  const budgetPctCapped = Math.min(budgetUsedPercent, 100);
+  const budgetOverrun = budgetUsedPercent > 100;
+  const budgetWarning = budgetUsedPercent >= 80 && !budgetOverrun;
 
-  // Category breakdown map (wallet txns only — purchases don't have categories)
+  // Category breakdown map
   const catMap: Partial<Record<ExpenseCategory, bigint>> = {};
   for (const row of categoryBreakdown) {
     if (row.category && row._sum.amountPaise) {
       catMap[row.category as ExpenseCategory] = row._sum.amountPaise;
     }
   }
-
-  // Wallet-txn spend (for category breakdown denominator — wallet only)
   const walletSpentForCats = Object.values(catMap).reduce((a, b) => a + (b ?? 0n), 0n);
+
+  // Income total (non-voided only)
+  const incomeTotal = incomes
+    .filter((i) => !i.voidedAt)
+    .reduce((sum, i) => sum + i.amountPaise, 0n);
 
   const serializedTxns = transactions.map((txn) => ({
     id: txn.id,
@@ -176,6 +195,7 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
     actorName: txn.actor.name,
     loggedByName: txn.loggedBy.name,
     isSelfLogged: txn.loggedById === txn.actorUserId,
+    isVoided: txn.voidedAt !== null,
   }));
 
   const serializedSite = {
@@ -193,6 +213,9 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
 
   const hasNext = page * ITEMS_PER_PAGE < txnCount;
   const hasPrev = page > 1;
+
+  const formatDate = (d: Date) =>
+    d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
@@ -222,29 +245,31 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <CalendarDays className="h-3 w-3" />
-              Started{" "}
-              {site.startDate.toLocaleDateString("en-IN", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })}
+              Started {site.startDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
             </span>
             {site.expectedEndDate && (
               <span className="flex items-center gap-1">
                 <CalendarDays className="h-3 w-3" />
-                Expected{" "}
-                {site.expectedEndDate.toLocaleDateString("en-IN", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}
+                Expected {site.expectedEndDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
               </span>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {currentUser.role === "OWNER" && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {isOwner && (
             <>
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/reports?site=${id}`}>
+                  <Download className="h-4 w-4 mr-1.5" />
+                  CSV
+                </Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/income/new?site=${id}`}>
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Income
+                </Link>
+              </Button>
               <Button asChild size="sm" variant="outline">
                 <Link href={`/material-transfers/new?from=${id}`}>
                   Transfer Material
@@ -271,8 +296,12 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-bold tabular-nums text-muted-foreground">₹0.00</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Phase 5</p>
+            <p className="text-lg font-bold tabular-nums text-green-600">
+              {formatINR(received)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {incomes.filter((i) => !i.voidedAt).length} payment{incomes.filter((i) => !i.voidedAt).length !== 1 ? "s" : ""}
+            </p>
           </CardContent>
         </Card>
 
@@ -283,8 +312,8 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-bold tabular-nums">
-              {formatINR(totalSpent)}
+            <p className="text-lg font-bold tabular-nums text-red-600">
+              {formatINR(spent)}
             </p>
           </CardContent>
         </Card>
@@ -296,10 +325,12 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-bold tabular-nums text-muted-foreground">
-              −{formatINR(totalSpent)}
+            <p className={`text-lg font-bold tabular-nums ${pnlAmount >= 0n ? "text-green-600" : "text-red-600"}`}>
+              {pnlAmount >= 0n ? "+" : "−"}{formatINR(pnlAmount >= 0n ? pnlAmount : -pnlAmount)}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">Income P5</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {pnlAmount >= 0n ? "Surplus" : "Deficit"}
+            </p>
           </CardContent>
         </Card>
 
@@ -310,13 +341,19 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1.5">
-            <p className={`text-lg font-bold ${budgetOverrun ? "text-red-600" : ""}`}>
-              {budgetPct.toFixed(1)}%
+            <p className={`text-lg font-bold ${budgetOverrun ? "text-red-600" : budgetWarning ? "text-yellow-600" : ""}`}>
+              {budgetUsedPercent.toFixed(1)}%
               {budgetOverrun && <span className="text-xs ml-1">⚠</span>}
             </p>
             <div className="w-full bg-muted rounded-full h-1.5">
               <div
-                className={`h-1.5 rounded-full transition-all ${budgetOverrun ? "bg-red-500" : "bg-primary"}`}
+                className={`h-1.5 rounded-full transition-all ${
+                  budgetOverrun
+                    ? "bg-red-500"
+                    : budgetWarning
+                      ? "bg-yellow-500"
+                      : "bg-primary"
+                }`}
                 style={{ width: `${budgetPctCapped}%` }}
               />
             </div>
@@ -342,9 +379,7 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
             return (
               <div key={cat} className="space-y-1">
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">
-                    {CATEGORY_LABELS[cat]}
-                  </span>
+                  <span className="text-muted-foreground">{CATEGORY_LABELS[cat]}</span>
                   <span className="tabular-nums">{formatINR(catAmount)}</span>
                 </div>
                 <div className="w-full bg-muted rounded-full h-1">
@@ -367,15 +402,12 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
         hasPrev={hasPrev}
         totalCount={txnCount}
         siteId={id}
+        siteName={site.name}
         availableMaterial={availableMaterial}
         purchaseCount={purchaseCount}
         recentPurchases={recentPurchases.map((p) => ({
           id: p.id,
-          purchaseDateFormatted: p.purchaseDate.toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }),
+          purchaseDateFormatted: formatDate(p.purchaseDate),
           itemName: p.itemName,
           quantity: Number(p.quantity).toFixed(2),
           unit: p.unit,
@@ -383,29 +415,40 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
           vendorName: p.vendor.name,
           paidByName: p.paidBy?.name ?? null,
           billPhotoUrl: p.billPhotoUrl,
+          isVoided: p.voidedAt !== null,
         }))}
         transfersIn={transfersIn.map((t) => ({
           id: t.id,
-          dateFormatted: t.transferDate.toLocaleDateString("en-IN", {
-            day: "numeric", month: "short", year: "numeric",
-          }),
+          dateFormatted: formatDate(t.transferDate),
           itemName: t.itemName,
           quantity: Number(t.quantity).toFixed(2),
           unit: t.unit,
           costFormatted: formatINR(t.costMovedPaise),
           fromName: t.fromSite?.name ?? "Central Store",
+          isVoided: t.voidedAt !== null,
         }))}
         transfersOut={transfersOut.map((t) => ({
           id: t.id,
-          dateFormatted: t.transferDate.toLocaleDateString("en-IN", {
-            day: "numeric", month: "short", year: "numeric",
-          }),
+          dateFormatted: formatDate(t.transferDate),
           itemName: t.itemName,
           quantity: Number(t.quantity).toFixed(2),
           unit: t.unit,
           costFormatted: formatINR(t.costMovedPaise),
           toName: t.toSite.name,
+          isVoided: t.voidedAt !== null,
         }))}
+        incomes={incomes.map((inc) => ({
+          id: inc.id,
+          dateFormatted: formatDate(inc.receivedDate),
+          type: inc.type,
+          typeLabel: INCOME_TYPE_LABELS[inc.type] ?? inc.type,
+          amountFormatted: formatINR(inc.amountPaise),
+          note: inc.note,
+          loggedByName: inc.loggedBy.name,
+          isVoided: inc.voidedAt !== null,
+        }))}
+        incomeTotalFormatted={formatINR(incomeTotal)}
+        isOwner={isOwner}
       />
     </div>
   );

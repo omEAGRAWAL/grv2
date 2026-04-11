@@ -16,8 +16,10 @@ type SiteRow = {
   name: string;
   clientName: string;
   contractFormatted: string;
+  receivedFormatted: string;
   spentFormatted: string;
   plFormatted: string;
+  plPositive: boolean;
   status: "ACTIVE" | "COMPLETED" | "ON_HOLD";
 };
 
@@ -42,9 +44,9 @@ export function SitesTable({ rows }: { rows: SiteRow[] }) {
           <TableRow>
             <TableHead>Site Name</TableHead>
             <TableHead>Client</TableHead>
-            <TableHead className="text-right">Spent</TableHead>
             <TableHead className="text-right">Budget</TableHead>
             <TableHead className="text-right">Received</TableHead>
+            <TableHead className="text-right">Spent</TableHead>
             <TableHead className="text-right">P&amp;L</TableHead>
             <TableHead>Status</TableHead>
           </TableRow>
@@ -60,16 +62,16 @@ export function SitesTable({ rows }: { rows: SiteRow[] }) {
               <TableCell className="text-muted-foreground">
                 {row.clientName}
               </TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">
+                {row.contractFormatted}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-green-600">
+                {row.receivedFormatted}
+              </TableCell>
               <TableCell className="text-right tabular-nums text-red-600">
                 {row.spentFormatted}
               </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {row.contractFormatted}
-              </TableCell>
-              <TableCell className="text-right tabular-nums text-muted-foreground">
-                ₹0.00
-              </TableCell>
-              <TableCell className="text-right tabular-nums text-muted-foreground">
+              <TableCell className={`text-right tabular-nums font-medium ${row.plPositive ? "text-green-600" : "text-red-600"}`}>
                 {row.plFormatted}
               </TableCell>
               <TableCell>

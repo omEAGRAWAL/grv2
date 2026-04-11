@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getSites } from "@/lib/sites";
-import { getBatchSiteSpend } from "@/lib/site-financials";
+import { getBatchSiteSpend, getBatchSiteIncome } from "@/lib/site-financials";
 import { formatINR } from "@/lib/money";
 import { CreateSiteDialog } from "@/components/sites/create-site-dialog";
 import { SiteFilter } from "@/components/sites/site-filter";
@@ -21,19 +21,26 @@ export default async function SitesPage({
   const { status } = await searchParams;
   const sites = await getSites(status);
 
-  // Batch-fetch unified spend (wallet + owner-direct purchases + net material transfers)
   const siteIds = sites.map((s) => s.id);
-  const spendMap = await getBatchSiteSpend(siteIds);
+  const [spendMap, incomeMap] = await Promise.all([
+    getBatchSiteSpend(siteIds),
+    getBatchSiteIncome(siteIds),
+  ]);
 
   const rows = sites.map((s) => {
     const spent = spendMap.get(s.id) ?? 0n;
+    const received = incomeMap.get(s.id) ?? 0n;
+    const pnl = received - spent;
     return {
       id: s.id,
       name: s.name,
       clientName: s.clientName,
       contractFormatted: formatINR(s.contractValuePaise),
+      receivedFormatted: formatINR(received),
       spentFormatted: formatINR(spent),
-      plFormatted: spent > 0n ? `−${formatINR(spent)}` : "₹0.00",
+      plFormatted:
+        pnl >= 0n ? `+${formatINR(pnl)}` : `−${formatINR(-pnl)}`,
+      plPositive: pnl >= 0n,
       status: s.status,
     };
   });

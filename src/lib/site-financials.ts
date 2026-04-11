@@ -1,5 +1,64 @@
 import { db } from "@/lib/db";
 
+// ─── Income helpers ───────────────────────────────────────────────────────────
+
+/**
+ * Total client payments received for a site (non-voided SiteIncome rows).
+ */
+export async function getSiteIncome(siteId: string): Promise<bigint> {
+  const agg = await db.siteIncome.aggregate({
+    _sum: { amountPaise: true },
+    where: { siteId, voidedAt: null },
+  });
+  return agg._sum.amountPaise ?? 0n;
+}
+
+/**
+ * Batch version of getSiteIncome — 1 query regardless of site count.
+ */
+export async function getBatchSiteIncome(
+  siteIds: string[]
+): Promise<Map<string, bigint>> {
+  if (siteIds.length === 0) return new Map();
+  const rows = await db.siteIncome.groupBy({
+    by: ["siteId"],
+    _sum: { amountPaise: true },
+    where: { siteId: { in: siteIds }, voidedAt: null },
+  });
+  const map = new Map<string, bigint>();
+  for (const r of rows) {
+    map.set(r.siteId, r._sum.amountPaise ?? 0n);
+  }
+  return map;
+}
+
+/**
+ * Full per-site P&L: received, spent, pnl, budgetUsedPercent.
+ * getSiteSpend and getSiteIncome run in parallel.
+ */
+export async function getSitePnL(
+  siteId: string,
+  contractValuePaise: bigint
+): Promise<{
+  received: bigint;
+  spent: bigint;
+  pnl: bigint;
+  budgetUsedPercent: number;
+}> {
+  const [received, spent] = await Promise.all([
+    getSiteIncome(siteId),
+    getSiteSpend(siteId),
+  ]);
+  const pnl = received - spent;
+  const budgetUsedPercent =
+    contractValuePaise > 0n
+      ? Number((spent * 10000n) / contractValuePaise) / 100
+      : 0;
+  return { received, spent, pnl, budgetUsedPercent };
+}
+
+// ─── Spend helpers ────────────────────────────────────────────────────────────
+
 /**
  * Compute the total spend for a single site.
  *
