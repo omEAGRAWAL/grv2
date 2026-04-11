@@ -17,7 +17,10 @@ const IncomeSchema = z.object({
       return false;
     }
   }, "Amount must be greater than ₹0"),
-  receivedDate: z.string().min(1, "Date is required"),
+  receivedDate: z
+    .string()
+    .min(1, "Date is required")
+    .refine((v) => !isNaN(Date.parse(v)), "Invalid date"),
   type: z.enum(["ADVANCE", "RUNNING_BILL", "FINAL", "RETENTION"], {
     errorMap: () => ({ message: "Select a valid income type" }),
   }),

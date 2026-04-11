@@ -8,14 +8,24 @@ Decimal.set({ precision: 28, rounding: Decimal.ROUND_HALF_UP });
  * "1234.56" → 123456n
  * Throws if the value is not a valid finite number.
  */
+// Maximum amount: ₹10 crore = 1,000,000,000 paise
+const MAX_PAISE = 1_000_000_000n;
+
 export function toPaise(rupees: string | number): bigint {
-  const d = new Decimal(rupees);
+  const d = new Decimal(String(rupees).trim());
   if (!d.isFinite()) {
     throw new Error(`Invalid rupees value: ${rupees}`);
   }
+  if (d.isNegative()) {
+    throw new Error(`Amount cannot be negative`);
+  }
   // Multiply by 100 and round to nearest paisa
   const paise = d.mul(100).toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
-  return BigInt(paise.toFixed(0));
+  const result = BigInt(paise.toFixed(0));
+  if (result > MAX_PAISE) {
+    throw new Error(`Amount exceeds maximum allowed (₹1,00,00,000)`);
+  }
+  return result;
 }
 
 /**

@@ -31,9 +31,9 @@ type Props = {
 
 export function CategoryPicker({ value, onChange }: Props) {
   return (
-    <div className="space-y-1.5">
-      <p className="text-sm font-medium">Category</p>
-      <div className="grid grid-cols-3 gap-2">
+    <fieldset className="space-y-1.5">
+      <legend className="text-sm font-medium">Category</legend>
+      <div className="grid grid-cols-3 gap-2" role="group" aria-label="Expense category">
         {CATEGORIES.map(({ value: cat, label, Icon }) => {
           const selected = value === cat;
           return (
@@ -41,6 +41,7 @@ export function CategoryPicker({ value, onChange }: Props) {
               key={cat}
               type="button"
               onClick={() => onChange(cat)}
+              aria-pressed={selected}
               className={cn(
                 "flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 text-xs font-medium transition-all active:scale-95",
                 selected
@@ -48,12 +49,12 @@ export function CategoryPicker({ value, onChange }: Props) {
                   : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
               )}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-5 w-5" aria-hidden="true" />
               {label}
             </button>
           );
         })}
       </div>
-    </div>
+    </fieldset>
   );
 }

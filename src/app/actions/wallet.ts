@@ -20,7 +20,8 @@ export async function topUpWallet(
 
   const employeeId = formData.get("employeeId") as string;
   const amountStr = formData.get("amount") as string;
-  const note = formData.get("note") as string | null;
+  const noteRaw = formData.get("note") as string | null;
+  const note = noteRaw?.slice(0, 200) || null;
 
   if (!employeeId) return { success: false, error: "Employee ID required" };
   if (!amountStr?.trim()) return { success: false, error: "Amount is required" };

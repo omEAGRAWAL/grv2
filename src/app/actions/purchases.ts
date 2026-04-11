@@ -53,7 +53,10 @@ const PurchaseSchema = z.object({
   destinationSiteId: z.string().optional(),
   // "OWNER_DIRECT" sentinel → null in DB (no wallet impact)
   paidByUserId: z.string().optional(),
-  purchaseDate: z.string().min(1, "Purchase date is required"),
+  purchaseDate: z
+    .string()
+    .min(1, "Purchase date is required")
+    .refine((v) => !isNaN(Date.parse(v)), "Invalid purchase date"),
   billPhotoUrl: z.string().url().optional().or(z.literal("")),
   billPhotoPublicId: z.string().optional(),
   note: z.string().max(500).optional(),
