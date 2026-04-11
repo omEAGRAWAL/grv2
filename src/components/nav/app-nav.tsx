@@ -25,6 +25,7 @@ const OWNER_LINKS = [
   { href: "/sites", label: "Sites" },
   { href: "/employees", label: "Employees" },
   { href: "/vendors", label: "Vendors" },
+  { href: "/reports", label: "Reports" },
 ];
 
 const EMPLOYEE_LINKS = [
