@@ -255,6 +255,6 @@ describe("voidPurchase", () => {
     const result = await voidPurchase("pur3");
 
     expect(result.success).toBe(false);
-    expect(result.error).toMatch(/already voided/i);
+    expect((result as { success: false; error: string }).error).toMatch(/already voided/i);
   });
 });
