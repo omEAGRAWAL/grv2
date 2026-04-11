@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Receipt, ArrowRightLeft } from "lucide-react";
+import { Receipt, ArrowRightLeft, Info } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getWalletBalance } from "@/lib/wallet";
 import { formatINR } from "@/lib/money";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "./logout-button";
 import { WalletHistorySection } from "@/components/wallet/wallet-history-section";
+import { ReconcileModal } from "@/components/wallet/reconcile-modal";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Profile — ConstructHub" };
@@ -108,9 +109,19 @@ export default async function MePage({ searchParams }: Props) {
       {/* Wallet balance + quick actions */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground font-medium">
-            Wallet Balance
-          </CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-sm text-muted-foreground font-medium flex items-center gap-1">
+              Wallet Balance
+              <span
+                title="This balance is calculated from your transaction history. It is never stored separately."
+                className="cursor-help text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                aria-label="About wallet balance"
+              >
+                <Info className="h-3.5 w-3.5" />
+              </span>
+            </CardTitle>
+            <ReconcileModal userId={user.id} basePath="/me" />
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-3xl font-bold tabular-nums">

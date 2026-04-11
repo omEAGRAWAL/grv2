@@ -3,11 +3,13 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getWalletBalance } from "@/lib/wallet";
 import { formatINR } from "@/lib/money";
+import { Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmployeeActionsMenu } from "@/components/employees/employee-actions-menu";
 import { TopUpButton } from "@/components/employees/topup-button";
 import { WalletHistorySection } from "@/components/wallet/wallet-history-section";
+import { ReconcileModal } from "@/components/wallet/reconcile-modal";
 import type { Metadata } from "next";
 
 type Props = {
@@ -114,8 +116,15 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+            <CardTitle className="text-xs text-muted-foreground font-medium uppercase tracking-wide flex items-center gap-1">
               Wallet
+              <span
+                title="This balance is calculated from transaction history. It is never stored separately."
+                className="cursor-help text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                aria-label="About wallet balance"
+              >
+                <Info className="h-3 w-3" />
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -148,6 +157,11 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Reconcile button */}
+      <div className="flex justify-end">
+        <ReconcileModal userId={employee.id} basePath={`/employees/${employee.id}`} />
       </div>
 
       {/* Wallet history */}
