@@ -104,6 +104,7 @@ export async function createMaterialTransfer(
   await db.$transaction(async (tx) => {
     await tx.materialTransfer.create({
       data: {
+        companyId: currentUser.effectiveCompanyId!,
         fromSiteId,
         toSiteId: parsed.data.toSiteId,
         itemName: parsed.data.itemName,

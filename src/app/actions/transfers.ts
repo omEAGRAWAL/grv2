@@ -37,14 +37,15 @@ export async function createTransfer(
     return { success: false, error: "Amount must be greater than ₹0" };
   }
 
-  // Employees can only transfer from themselves — enforce server-side
+  // Only OWNER/SITE_MANAGER can transfer on behalf of others
+  const canDelegate = currentUser.role === "OWNER" || currentUser.role === "SITE_MANAGER" || currentUser.role === "SUPERADMIN";
   const fromUserId =
-    currentUser.role === "OWNER" && fromUserIdRaw
+    canDelegate && fromUserIdRaw
       ? fromUserIdRaw
       : currentUser.id;
 
-  if (currentUser.role !== "OWNER" && fromUserIdRaw && fromUserIdRaw !== currentUser.id) {
-    return { success: false, error: "Employees can only transfer from their own wallet" };
+  if (!canDelegate && fromUserIdRaw && fromUserIdRaw !== currentUser.id) {
+    return { success: false, error: "You can only transfer from your own wallet" };
   }
 
   if (fromUserId === toUserId) {
@@ -66,9 +67,12 @@ export async function createTransfer(
     return { success: false, error: "Insufficient wallet balance" };
   }
 
+  const companyId = currentUser.effectiveCompanyId!;
+
   await db.$transaction(async (tx) => {
     await tx.walletTransaction.create({
       data: {
+        companyId,
         actorUserId: fromUserId,
         loggedById: currentUser.id,
         type: "TRANSFER_OUT",
@@ -80,6 +84,7 @@ export async function createTransfer(
     });
     await tx.walletTransaction.create({
       data: {
+        companyId,
         actorUserId: toUserId,
         loggedById: currentUser.id,
         type: "TRANSFER_IN",

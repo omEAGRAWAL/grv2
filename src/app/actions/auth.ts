@@ -4,6 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { verifyPassword, getSession } from "@/lib/auth";
+import type { SessionData } from "@/lib/session-config";
 import {
   checkRateLimit,
   recordFailure,
@@ -39,7 +40,10 @@ export async function loginAction(
 
   const GENERIC_ERROR = "Invalid username or password";
 
-  const user = await db.user.findUnique({
+  // Find user by username globally. With multi-tenancy, same username may exist
+  // across companies — a future login screen should add a company-code field
+  // for disambiguation. For now, we use findFirst (SUPERADMIN has null companyId).
+  const user = await db.user.findFirst({
     where: { username: normalizedUsername },
   });
 
@@ -64,7 +68,8 @@ export async function loginAction(
 
   const session = await getSession();
   session.userId = user.id;
-  session.role = user.role as "OWNER" | "EMPLOYEE";
+  session.role = user.role as SessionData["role"];
+  session.companyId = user.companyId ?? undefined;
   await session.save();
 
   await db.user.update({

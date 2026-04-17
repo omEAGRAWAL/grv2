@@ -125,7 +125,7 @@ describe("createTransfer", () => {
     );
 
     expect(result?.success).toBe(false);
-    expect(result?.error).toMatch(/employees can only/i);
+    expect(result?.error).toMatch(/can only transfer from your own/i);
     expect(vi.mocked(db.walletTransaction.create)).not.toHaveBeenCalled();
   });
 

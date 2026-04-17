@@ -14,7 +14,9 @@ if (secret.length < 32) {
 
 export interface SessionData {
   userId: string;
-  role: "OWNER" | "EMPLOYEE";
+  role: "SUPERADMIN" | "OWNER" | "SITE_MANAGER" | "SUPERVISOR" | "WORKER" | "EMPLOYEE";
+  companyId?: string;
+  impersonatingCompanyId?: string;
 }
 
 export const sessionOptions: SessionOptions = {

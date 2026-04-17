@@ -40,7 +40,7 @@ export function ResetDemoButton() {
           variant="destructive"
           className="flex-1"
           disabled={isPending}
-          onClick={() => startTransition(() => resetDemo())}
+          onClick={() => startTransition(async () => { await resetDemo(); })}
         >
           {isPending ? "Resetting…" : "Yes, Reset"}
         </Button>

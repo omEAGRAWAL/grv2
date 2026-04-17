@@ -45,8 +45,9 @@ export async function createVendor(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
+  let owner;
   try {
-    await requireOwner();
+    owner = await requireOwner();
   } catch {
     return { success: false, error: "Only owners can manage vendors" };
   }
@@ -66,6 +67,7 @@ export async function createVendor(
 
   const vendor = await db.vendor.create({
     data: {
+      companyId: owner.effectiveCompanyId!,
       name: parsed.data.name,
       contactPhone: parsed.data.contactPhone ?? null,
       gstin: parsed.data.gstin ?? null,
@@ -86,7 +88,7 @@ export async function updateVendor(
   try {
     await requireOwner();
   } catch {
-    return { success: false, error: "Only owners can manage vendors" };
+    return { success: false, error: "Only owners can update vendors" };
   }
 
   const vendorId = (formData.get("vendorId") as string) ?? "";

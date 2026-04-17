@@ -99,6 +99,14 @@ async function main() {
     console.error("  ✗ Name cannot be empty.\n");
   }
 
+  // Company name
+  let companyName = "";
+  while (true) {
+    companyName = await prompt(rl, "Company name: ");
+    if (companyName.length >= 1) break;
+    console.error("  ✗ Company name cannot be empty.\n");
+  }
+
   rl.close(); // close before raw mode for password
 
   // Password (hidden)
@@ -119,11 +127,16 @@ async function main() {
     break;
   }
 
-  console.log("\nCreating owner account...");
+  console.log("\nCreating company and owner account...");
   const passwordHash = await hashPassword(password);
+
+  const company = await db.company.create({
+    data: { name: companyName, status: "ACTIVE" },
+  });
 
   const user = await db.user.create({
     data: {
+      companyId: company.id,
       username,
       name,
       passwordHash,

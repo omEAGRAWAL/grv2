@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireOwner } from "@/lib/auth";
+import { assertCan } from "@/lib/permissions";
 import { toPaise } from "@/lib/money";
 
 type ActionResult = { success: true } | { success: false; error: string };
@@ -31,8 +32,10 @@ export async function createSite(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
+  let owner;
   try {
-    await requireOwner();
+    owner = await requireOwner();
+    assertCan(owner, "create:site");
   } catch {
     return { success: false, error: "Unauthorized" };
   }
@@ -60,6 +63,7 @@ export async function createSite(
   try {
     await db.site.create({
       data: {
+        companyId: owner.effectiveCompanyId!,
         name: parsed.data.name,
         location: parsed.data.location,
         clientName: parsed.data.clientName,
@@ -84,8 +88,10 @@ export async function updateSite(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
+  let owner;
   try {
-    await requireOwner();
+    owner = await requireOwner();
+    assertCan(owner, "update:site");
   } catch {
     return { success: false, error: "Unauthorized" };
   }

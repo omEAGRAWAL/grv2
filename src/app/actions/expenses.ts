@@ -71,10 +71,11 @@ export async function createExpense(
   const site = await db.site.findUnique({ where: { id: parsed.data.siteId } });
   if (!site) return { success: false, error: "Site not found" };
 
-  // Determine actor — only OWNER can log on behalf of others
+  // Determine actor — only OWNER/SITE_MANAGER can log on behalf of others
   let actorUserId = currentUser.id;
   if (parsed.data.onBehalfOfUserId) {
-    if (currentUser.role !== "OWNER") {
+    const canDelegate = currentUser.role === "OWNER" || currentUser.role === "SITE_MANAGER" || currentUser.role === "SUPERADMIN";
+    if (!canDelegate) {
       return {
         success: false,
         error: "Only owners can log expenses on behalf of others",
@@ -92,6 +93,7 @@ export async function createExpense(
   await db.$transaction(async (tx) => {
     await tx.walletTransaction.create({
       data: {
+        companyId: currentUser.effectiveCompanyId!,
         actorUserId,
         loggedById: currentUser.id,
         type: "EXPENSE",

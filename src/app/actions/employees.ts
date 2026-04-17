@@ -26,8 +26,9 @@ export async function createEmployee(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
+  let owner;
   try {
-    await requireOwner();
+    owner = await requireOwner();
   } catch {
     return { success: false, error: "Unauthorized" };
   }
@@ -45,8 +46,12 @@ export async function createEmployee(
 
   const { name, username, password } = result.data;
   const normalizedUsername = username.toLowerCase();
+  const companyId = owner.effectiveCompanyId;
 
-  const existing = await db.user.findUnique({ where: { username: normalizedUsername } });
+  // Username must be unique within the same company
+  const existing = await db.user.findFirst({
+    where: { companyId: companyId ?? null, username: normalizedUsername },
+  });
   if (existing) {
     return { success: false, error: "Username already taken" };
   }
@@ -55,6 +60,7 @@ export async function createEmployee(
 
   await db.user.create({
     data: {
+      companyId: companyId ?? null,
       username: normalizedUsername,
       passwordHash,
       name,
@@ -130,7 +136,6 @@ export async function toggleEmployeeActive(
   const { userId, active } = result.data;
   const isActive = active === "true";
 
-  // Prevent deactivating yourself
   if (userId === owner.id) {
     return { success: false, error: "You cannot deactivate your own account" };
   }

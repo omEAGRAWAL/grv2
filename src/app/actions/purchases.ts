@@ -66,13 +66,12 @@ export async function createPurchase(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult | never> {
+  let currentUser;
   try {
-    await requireOwner();
+    currentUser = await requireOwner();
   } catch {
     return { success: false, error: "Only owners can log purchases" };
   }
-
-  const currentUser = await getCurrentUser();
 
   const raw = {
     vendorId: (formData.get("vendorId") as string) ?? "",
@@ -154,9 +153,12 @@ export async function createPurchase(
 
   let destinationSiteIdForRedirect: string | null = destinationSiteId;
 
+  const companyId = currentUser.effectiveCompanyId!;
+
   await db.$transaction(async (tx) => {
     const purchase = await tx.purchase.create({
       data: {
+        companyId,
         vendorId: parsed.data.vendorId,
         itemName: parsed.data.itemName,
         quantity: parsed.data.quantity,
@@ -179,6 +181,7 @@ export async function createPurchase(
     if (paidByUserId) {
       await tx.walletTransaction.create({
         data: {
+          companyId,
           actorUserId: paidByUserId,
           loggedById: currentUser.id,
           type: "VENDOR_PAYMENT",
@@ -218,6 +221,7 @@ export async function voidPurchase(purchaseId: string): Promise<VoidResult> {
     where: { id: purchaseId },
     select: {
       id: true,
+      companyId: true,
       vendorId: true,
       destinationSiteId: true,
       paidByUserId: true,
@@ -255,6 +259,7 @@ export async function voidPurchase(purchaseId: string): Promise<VoidResult> {
         // Credit back to the payer's wallet
         await tx.walletTransaction.create({
           data: {
+            companyId: purchase.companyId,
             actorUserId: purchase.paidByUserId,
             loggedById: currentUser.id,
             type: "REVERSAL",

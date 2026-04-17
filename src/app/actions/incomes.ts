@@ -67,6 +67,7 @@ export async function createSiteIncome(
   await db.$transaction(async (tx) => {
     await tx.siteIncome.create({
       data: {
+        companyId: owner.effectiveCompanyId!,
         siteId: parsed.data.siteId,
         amountPaise,
         receivedDate: new Date(parsed.data.receivedDate),

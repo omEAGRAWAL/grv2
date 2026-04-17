@@ -37,10 +37,13 @@ export async function topUpWallet(
     return { success: false, error: "Amount must be greater than ₹0" };
   }
 
+  const companyId = owner.effectiveCompanyId!;
+
   try {
     await db.$transaction(async (tx) => {
       await tx.walletTransaction.create({
         data: {
+          companyId,
           actorUserId: employeeId,
           loggedById: owner.id,
           type: "TOPUP",
@@ -82,6 +85,7 @@ export async function voidWalletTransaction(
     where: { id },
     select: {
       id: true,
+      companyId: true,
       actorUserId: true,
       loggedById: true,
       type: true,
@@ -136,6 +140,7 @@ export async function voidWalletTransaction(
     // Create reversal for original
     await tx.walletTransaction.create({
       data: {
+        companyId: txn.companyId,
         actorUserId: txn.actorUserId,
         loggedById: currentUser.id,
         type: "REVERSAL",
@@ -165,6 +170,7 @@ export async function voidWalletTransaction(
         });
         await tx.walletTransaction.create({
           data: {
+            companyId: txn.companyId,
             actorUserId: counterpart.actorUserId,
             loggedById: currentUser.id,
             type: "REVERSAL",

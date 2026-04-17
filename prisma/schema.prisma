@@ -9,8 +9,17 @@ datasource db {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+}
+
 enum Role {
+  SUPERADMIN
   OWNER
+  SITE_MANAGER
+  SUPERVISOR
+  WORKER
   EMPLOYEE
 }
 
@@ -52,18 +61,39 @@ enum IncomeType {
 
 // ─── Models ───────────────────────────────────────────────────────────────────
 
+model Company {
+  id        String        @id @default(cuid())
+  name      String        @unique
+  status    CompanyStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  users             User[]
+  sites             Site[]
+  vendors           Vendor[]
+  walletTransactions WalletTransaction[]
+  purchases         Purchase[]
+  materialTransfers MaterialTransfer[]
+  siteIncomes       SiteIncome[]
+  siteAssignments   SiteAssignment[]
+}
+
 model User {
-  id           String    @id @default(cuid())
-  username     String    @unique
-  passwordHash String
-  name         String
-  role         Role
-  joinedAt     DateTime  @default(now())
-  isActive     Boolean   @default(true)
-  lastLoginAt              DateTime?
-  onboardingDismissedAt    DateTime?
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  companyId             String?
+  company               Company?  @relation(fields: [companyId], references: [id])
+  username              String
+  passwordHash          String
+  name                  String
+  role                  Role
+  title                 String?
+  mobileVerified        Boolean   @default(false)
+  joinedAt              DateTime  @default(now())
+  isActive              Boolean   @default(true)
+  lastLoginAt           DateTime?
+  onboardingDismissedAt DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   walletTransactionsAsActor        WalletTransaction[] @relation("ActorTransactions")
   walletTransactionsAsLogger       WalletTransaction[] @relation("LoggedTransactions")
@@ -76,10 +106,16 @@ model User {
   transfersAsVoider                MaterialTransfer[]  @relation("VoidedTransfers")
   siteIncomesAsLogger              SiteIncome[]        @relation("LoggedIncomes")
   siteIncomesAsVoider              SiteIncome[]        @relation("VoidedIncomes")
+  siteAssignments                  SiteAssignment[]
+
+  @@unique([companyId, username])
+  @@index([companyId])
 }
 
 model Site {
   id                 String     @id @default(cuid())
+  companyId          String
+  company            Company    @relation(fields: [companyId], references: [id])
   name               String
   location           String
   clientName         String
@@ -95,10 +131,15 @@ model Site {
   transfersIn        MaterialTransfer[] @relation("ToTransfers")
   transfersOut       MaterialTransfer[] @relation("FromTransfers")
   incomes            SiteIncome[]
+  siteAssignments    SiteAssignment[]
+
+  @@index([companyId])
 }
 
 model Vendor {
   id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
   name         String
   contactPhone String?
   gstin        String?
@@ -108,10 +149,14 @@ model Vendor {
   updatedAt    DateTime @updatedAt
 
   purchases Purchase[]
+
+  @@index([companyId])
 }
 
 model WalletTransaction {
   id                 String          @id @default(cuid())
+  companyId          String
+  company            Company         @relation(fields: [companyId], references: [id])
   actorUserId        String
   actor              User            @relation("ActorTransactions", fields: [actorUserId], references: [id])
   loggedById         String
@@ -137,10 +182,13 @@ model WalletTransaction {
   @@index([actorUserId])
   @@index([siteId])
   @@index([createdAt])
+  @@index([companyId])
 }
 
 model Purchase {
   id                String   @id @default(cuid())
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id])
   vendorId          String
   vendor            Vendor   @relation(fields: [vendorId], references: [id])
   itemName          String
@@ -167,10 +215,13 @@ model Purchase {
 
   @@index([destinationSiteId])
   @@index([vendorId])
+  @@index([companyId])
 }
 
 model MaterialTransfer {
   id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id])
   fromSiteId     String?
   fromSite       Site?    @relation("FromTransfers", fields: [fromSiteId], references: [id])
   toSiteId       String
@@ -190,10 +241,13 @@ model MaterialTransfer {
 
   @@index([fromSiteId])
   @@index([toSiteId])
+  @@index([companyId])
 }
 
 model SiteIncome {
   id           String     @id @default(cuid())
+  companyId    String
+  company      Company    @relation(fields: [companyId], references: [id])
   siteId       String
   site         Site       @relation(fields: [siteId], references: [id])
   amountPaise  BigInt
@@ -208,4 +262,21 @@ model SiteIncome {
   createdAt    DateTime   @default(now())
 
   @@index([siteId, receivedDate])
+  @@index([companyId])
+}
+
+model SiteAssignment {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  siteId    String
+  site      Site     @relation(fields: [siteId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, siteId])
+  @@index([companyId])
+  @@index([userId])
+  @@index([siteId])
 }

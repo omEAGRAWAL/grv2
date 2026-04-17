@@ -33,6 +33,8 @@ function daysAgo(n: number): Date {
   return d;
 }
 
+const DEMO_COMPANY_ID = "demo-company";
+
 async function main() {
   console.log("\n─── ConstructHub Demo Seed ───\n");
   console.log("WARNING: This will DELETE all existing data and replace it with demo data.");
@@ -43,7 +45,8 @@ async function main() {
   }
 
   console.log("\nClearing existing data...");
-  // Clear in dependency order
+  // Clear in dependency order (FK constraints)
+  await db.siteAssignment.deleteMany();
   await db.siteIncome.deleteMany();
   await db.materialTransfer.deleteMany();
   await db.walletTransaction.deleteMany();
@@ -51,12 +54,23 @@ async function main() {
   await db.site.deleteMany();
   await db.vendor.deleteMany();
   await db.user.deleteMany();
+  await db.company.deleteMany();
+
+  console.log("Creating demo company...");
+  await db.company.create({
+    data: {
+      id: DEMO_COMPANY_ID,
+      name: "Demo Construction Co.",
+      status: "ACTIVE",
+    },
+  });
 
   console.log("Creating users...");
 
   const ownerHash = await hashPassword("demo1234");
   const owner = await db.user.create({
     data: {
+      companyId: DEMO_COMPANY_ID,
       username: "demo_owner",
       passwordHash: ownerHash,
       name: "Vikram Sharma",
@@ -67,10 +81,10 @@ async function main() {
 
   const empHash = await hashPassword("pass1234");
   const [ramesh, suresh, mahesh, dinesh] = await Promise.all([
-    db.user.create({ data: { username: "ramesh", passwordHash: empHash, name: "Ramesh Kumar", role: "EMPLOYEE", isActive: true } }),
-    db.user.create({ data: { username: "suresh", passwordHash: empHash, name: "Suresh Patel", role: "EMPLOYEE", isActive: true } }),
-    db.user.create({ data: { username: "mahesh", passwordHash: empHash, name: "Mahesh Verma", role: "EMPLOYEE", isActive: true } }),
-    db.user.create({ data: { username: "dinesh", passwordHash: empHash, name: "Dinesh Singh", role: "EMPLOYEE", isActive: true } }),
+    db.user.create({ data: { companyId: DEMO_COMPANY_ID, username: "ramesh", passwordHash: empHash, name: "Ramesh Kumar", role: "EMPLOYEE", isActive: true } }),
+    db.user.create({ data: { companyId: DEMO_COMPANY_ID, username: "suresh", passwordHash: empHash, name: "Suresh Patel", role: "EMPLOYEE", isActive: true } }),
+    db.user.create({ data: { companyId: DEMO_COMPANY_ID, username: "mahesh", passwordHash: empHash, name: "Mahesh Verma", role: "EMPLOYEE", isActive: true } }),
+    db.user.create({ data: { companyId: DEMO_COMPANY_ID, username: "dinesh", passwordHash: empHash, name: "Dinesh Singh", role: "EMPLOYEE", isActive: true } }),
   ]);
 
   console.log("Creating sites...");
@@ -78,6 +92,7 @@ async function main() {
   const [siteA, siteB, siteC] = await Promise.all([
     db.site.create({
       data: {
+        companyId: DEMO_COMPANY_ID,
         name: "Sharma Residence",
         location: "Andheri West, Mumbai",
         clientName: "Rajesh Sharma",
@@ -89,6 +104,7 @@ async function main() {
     }),
     db.site.create({
       data: {
+        companyId: DEMO_COMPANY_ID,
         name: "Patel Villa",
         location: "Baner, Pune",
         clientName: "Hardik Patel",
@@ -100,6 +116,7 @@ async function main() {
     }),
     db.site.create({
       data: {
+        companyId: DEMO_COMPANY_ID,
         name: "Mehta Apartments",
         location: "Prahlad Nagar, Ahmedabad",
         clientName: "Mehta Builders Pvt Ltd",
@@ -114,16 +131,15 @@ async function main() {
   console.log("Creating vendors...");
   const [vendorCement, vendorSteel] = await Promise.all([
     db.vendor.create({
-      data: { name: "Shree Cement Suppliers", contactPhone: "9876543210", gstin: "27AABCA1234C1Z5" },
+      data: { companyId: DEMO_COMPANY_ID, name: "Shree Cement Suppliers", contactPhone: "9876543210", gstin: "27AABCA1234C1Z5" },
     }),
     db.vendor.create({
-      data: { name: "Steel Mart Pvt Ltd", contactPhone: "9123456789", gstin: "07BBBCS1234D1Z9" },
+      data: { companyId: DEMO_COMPANY_ID, name: "Steel Mart Pvt Ltd", contactPhone: "9123456789", gstin: "07BBBCS1234D1Z9" },
     }),
   ]);
 
   console.log("Creating wallet top-ups...");
 
-  // Top-ups
   const topups = [
     { user: ramesh, amount: 50000, daysBack: 55 },
     { user: suresh, amount: 40000, daysBack: 50 },
@@ -137,6 +153,7 @@ async function main() {
   for (const { user: emp, amount, daysBack } of topups) {
     await db.walletTransaction.create({
       data: {
+        companyId: DEMO_COMPANY_ID,
         actorUserId: emp.id,
         loggedById: owner.id,
         type: "TOPUP",
@@ -149,7 +166,6 @@ async function main() {
 
   console.log("Creating expenses...");
 
-  // Expenses
   const expenses = [
     { emp: ramesh, site: siteA, amount: 3200, cat: "MATERIALS", note: "Sand bags", daysBack: 53 },
     { emp: ramesh, site: siteA, amount: 1800, cat: "TRANSPORT", note: "Auto-rickshaw for cement", daysBack: 51 },
@@ -168,6 +184,7 @@ async function main() {
   for (const { emp, site, amount, cat, note, daysBack } of expenses) {
     await db.walletTransaction.create({
       data: {
+        companyId: DEMO_COMPANY_ID,
         actorUserId: emp.id,
         loggedById: emp.id,
         type: "EXPENSE",
@@ -183,7 +200,6 @@ async function main() {
 
   console.log("Creating transfers between employees...");
 
-  // Peer transfers
   const transferPairs = [
     { from: ramesh, to: suresh, amount: 8000, daysBack: 40 },
     { from: suresh, to: mahesh, amount: 5000, daysBack: 30 },
@@ -192,6 +208,7 @@ async function main() {
     const createdAt = daysAgo(daysBack);
     await db.walletTransaction.create({
       data: {
+        companyId: DEMO_COMPANY_ID,
         actorUserId: from.id,
         loggedById: owner.id,
         type: "TRANSFER_OUT",
@@ -203,6 +220,7 @@ async function main() {
     });
     await db.walletTransaction.create({
       data: {
+        companyId: DEMO_COMPANY_ID,
         actorUserId: to.id,
         loggedById: owner.id,
         type: "TRANSFER_IN",
@@ -216,9 +234,9 @@ async function main() {
 
   console.log("Creating vendor purchases...");
 
-  // Purchase 1: wallet-paid, cement for site A
   const cement50 = await db.purchase.create({
     data: {
+      companyId: DEMO_COMPANY_ID,
       vendorId: vendorCement.id,
       itemName: "Cement 50kg",
       quantity: new Decimal("50"),
@@ -226,7 +244,7 @@ async function main() {
       ratePaise: toPaise(380),
       discountPercent: new Decimal("5"),
       gstPercent: new Decimal("18"),
-      totalPaise: toPaise(21299), // 50×380×0.95×1.18 ≈ ₹21,299
+      totalPaise: toPaise(21299),
       destinationSiteId: siteA.id,
       paidByUserId: ramesh.id,
       purchaseDate: daysAgo(42),
@@ -235,9 +253,9 @@ async function main() {
       createdAt: daysAgo(42),
     },
   });
-  // VENDOR_PAYMENT wallet txn for cement
   await db.walletTransaction.create({
     data: {
+      companyId: DEMO_COMPANY_ID,
       actorUserId: ramesh.id,
       loggedById: owner.id,
       type: "VENDOR_PAYMENT",
@@ -249,9 +267,9 @@ async function main() {
     },
   });
 
-  // Purchase 2: wallet-paid, steel for site B
   const steelRods = await db.purchase.create({
     data: {
+      companyId: DEMO_COMPANY_ID,
       vendorId: vendorSteel.id,
       itemName: "TMT Steel Bars 12mm",
       quantity: new Decimal("20"),
@@ -259,7 +277,7 @@ async function main() {
       ratePaise: toPaise(850),
       discountPercent: new Decimal("0"),
       gstPercent: new Decimal("18"),
-      totalPaise: toPaise(20060), // 20×850×1.18 = ₹20,060
+      totalPaise: toPaise(20060),
       destinationSiteId: siteB.id,
       paidByUserId: suresh.id,
       purchaseDate: daysAgo(35),
@@ -269,6 +287,7 @@ async function main() {
   });
   await db.walletTransaction.create({
     data: {
+      companyId: DEMO_COMPANY_ID,
       actorUserId: suresh.id,
       loggedById: owner.id,
       type: "VENDOR_PAYMENT",
@@ -280,9 +299,9 @@ async function main() {
     },
   });
 
-  // Purchase 3: owner-direct, aggregate for site C
   await db.purchase.create({
     data: {
+      companyId: DEMO_COMPANY_ID,
       vendorId: vendorCement.id,
       itemName: "M-sand (Manufactured Sand)",
       quantity: new Decimal("10"),
@@ -290,18 +309,18 @@ async function main() {
       ratePaise: toPaise(1200),
       discountPercent: new Decimal("0"),
       gstPercent: new Decimal("18"),
-      totalPaise: toPaise(14160), // 10×1200×1.18 = ₹14,160
+      totalPaise: toPaise(14160),
       destinationSiteId: siteC.id,
-      paidByUserId: null, // owner-direct
+      paidByUserId: null,
       purchaseDate: daysAgo(20),
       loggedById: owner.id,
       createdAt: daysAgo(20),
     },
   });
 
-  // Purchase 4: owner-direct, bricks for site A
   await db.purchase.create({
     data: {
+      companyId: DEMO_COMPANY_ID,
       vendorId: vendorSteel.id,
       itemName: "AAC Blocks 600×200×200",
       quantity: new Decimal("500"),
@@ -309,9 +328,9 @@ async function main() {
       ratePaise: toPaise(55),
       discountPercent: new Decimal("2"),
       gstPercent: new Decimal("12"),
-      totalPaise: toPaise(30184), // 500×55×0.98×1.12 = ₹30,184
+      totalPaise: toPaise(30184),
       destinationSiteId: siteA.id,
-      paidByUserId: null, // owner-direct
+      paidByUserId: null,
       purchaseDate: daysAgo(14),
       loggedById: owner.id,
       createdAt: daysAgo(14),
@@ -320,15 +339,15 @@ async function main() {
 
   console.log("Creating material transfers...");
 
-  // Transfer 20 cement bags from site A to site C
   await db.materialTransfer.create({
     data: {
+      companyId: DEMO_COMPANY_ID,
       fromSiteId: siteA.id,
       toSiteId: siteC.id,
       itemName: "Cement 50kg",
       quantity: new Decimal("20"),
       unit: "bags",
-      costMovedPaise: toPaise(8520), // proportional cost: 20/50 × 21299 ≈ 8520
+      costMovedPaise: toPaise(8520),
       transferDate: daysAgo(28),
       loggedById: owner.id,
       note: "Surplus cement moved to Mehta Apartments",
@@ -338,7 +357,6 @@ async function main() {
 
   console.log("Creating site income records...");
 
-  // Site incomes
   const incomes = [
     { site: siteA, amount: 500000, type: "ADVANCE", note: "First advance — 33% of contract", daysBack: 58 },
     { site: siteA, amount: 350000, type: "RUNNING_BILL", note: "Running bill #1 — foundation work", daysBack: 20 },
@@ -350,6 +368,7 @@ async function main() {
   for (const { site, amount, type, note, daysBack } of incomes) {
     await db.siteIncome.create({
       data: {
+        companyId: DEMO_COMPANY_ID,
         siteId: site.id,
         amountPaise: toPaise(amount),
         receivedDate: daysAgo(daysBack),
