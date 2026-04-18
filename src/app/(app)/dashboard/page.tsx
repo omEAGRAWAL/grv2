@@ -125,6 +125,36 @@ export default async function DashboardPage() {
 
   const topSites = allSites.slice(0, 5);
 
+  // Recent site updates (owner only)
+  type RecentUpdate = {
+    id: string;
+    siteId: string;
+    siteName: string;
+    workDone: string;
+    submitterName: string;
+    createdAt: Date;
+  };
+  let recentUpdates: RecentUpdate[] = [];
+  if (user.role === "OWNER" && companyId) {
+    const raw = await db.siteUpdate.findMany({
+      where: { companyId, voidedAt: null },
+      include: {
+        submittedBy: { select: { name: true } },
+        site: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    });
+    recentUpdates = raw.map((u) => ({
+      id: u.id,
+      siteId: u.site.id,
+      siteName: u.site.name,
+      workDone: u.workDone,
+      submitterName: u.submittedBy.name,
+      createdAt: u.createdAt,
+    }));
+  }
+
   // Budget warnings — only for owners, only ACTIVE sites
   type BudgetWarning = {
     siteId: string;
@@ -337,6 +367,41 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Recent site updates (owner) */}
+      {user.role === "OWNER" && recentUpdates.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">Recent Updates</h2>
+            <Link href="/updates" className="text-xs text-muted-foreground underline underline-offset-2">
+              View all →
+            </Link>
+          </div>
+          <div className="rounded-lg border divide-y">
+            {recentUpdates.map((u) => {
+              const diff = Date.now() - u.createdAt.getTime();
+              const mins = Math.floor(diff / 60000);
+              const hours = Math.floor(mins / 60);
+              const days = Math.floor(hours / 24);
+              const rel = mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : hours < 24 ? `${hours}h ago` : `${days}d ago`;
+              return (
+                <Link
+                  key={u.id}
+                  href={`/sites/${u.siteId}?tab=updates`}
+                  className="flex items-start justify-between px-4 py-3 hover:bg-accent/50 transition-colors gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-primary">{u.siteName}</p>
+                    <p className="text-sm truncate">{u.workDone}</p>
+                    <p className="text-xs text-muted-foreground">{u.submitterName}</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">{rel}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Quick links */}
       {user.role === "OWNER" && (

@@ -80,15 +80,17 @@ model Company {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  users             User[]
-  sites             Site[]
-  vendors           Vendor[]
-  walletTransactions WalletTransaction[]
-  purchases         Purchase[]
-  materialTransfers MaterialTransfer[]
-  siteIncomes       SiteIncome[]
-  siteAssignments   SiteAssignment[]
-  attendances       Attendance[]
+  users               User[]
+  sites               Site[]
+  vendors             Vendor[]
+  walletTransactions  WalletTransaction[]
+  purchases           Purchase[]
+  materialTransfers   MaterialTransfer[]
+  siteIncomes         SiteIncome[]
+  siteAssignments     SiteAssignment[]
+  attendances         Attendance[]
+  siteUpdates         SiteUpdate[]
+  materialConsumptions MaterialConsumption[]
 }
 
 model User {
@@ -123,6 +125,10 @@ model User {
   siteAssignments                  SiteAssignment[]
   attendancesAsUser                Attendance[]        @relation("AttendanceUser")
   attendancesAsMarker              Attendance[]        @relation("AttendanceMarkedBy")
+  submittedUpdates                 SiteUpdate[]        @relation("SubmittedUpdates")
+  voidedUpdates                    SiteUpdate[]        @relation("VoidedUpdates")
+  loggedConsumptions               MaterialConsumption[] @relation("LoggedConsumptions")
+  voidedConsumptions               MaterialConsumption[] @relation("VoidedConsumptions")
 
   @@unique([companyId, username])
   @@index([companyId])
@@ -142,13 +148,15 @@ model Site {
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
-  walletTransactions WalletTransaction[]
-  purchases          Purchase[]         @relation("DestinationPurchases")
-  transfersIn        MaterialTransfer[] @relation("ToTransfers")
-  transfersOut       MaterialTransfer[] @relation("FromTransfers")
-  incomes            SiteIncome[]
-  siteAssignments    SiteAssignment[]
-  attendances        Attendance[]
+  walletTransactions   WalletTransaction[]
+  purchases            Purchase[]            @relation("DestinationPurchases")
+  transfersIn          MaterialTransfer[]    @relation("ToTransfers")
+  transfersOut         MaterialTransfer[]    @relation("FromTransfers")
+  incomes              SiteIncome[]
+  siteAssignments      SiteAssignment[]
+  attendances          Attendance[]
+  siteUpdates          SiteUpdate[]
+  materialConsumptions MaterialConsumption[]
 
   @@index([companyId])
 }
@@ -321,4 +329,48 @@ model Attendance {
   @@unique([companyId, userId, date])
   @@index([companyId, date])
   @@index([userId])
+}
+
+model SiteUpdate {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  siteId        String
+  site          Site      @relation(fields: [siteId], references: [id])
+  workDone      String
+  headcount     Int?
+  blockers      String?
+  photos        Json      @default("[]")
+  submittedById String
+  submittedBy   User      @relation("SubmittedUpdates", fields: [submittedById], references: [id])
+  editedAt      DateTime?
+  voidedAt      DateTime?
+  voidedById    String?
+  voidedBy      User?     @relation("VoidedUpdates", fields: [voidedById], references: [id])
+  createdAt     DateTime  @default(now())
+
+  @@index([companyId, siteId, createdAt])
+  @@index([siteId, createdAt])
+}
+
+model MaterialConsumption {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  siteId       String
+  site         Site     @relation(fields: [siteId], references: [id])
+  itemName     String
+  quantity     Decimal  @db.Decimal(14, 4)
+  unit         String
+  consumedDate DateTime
+  note         String?
+  loggedById   String
+  loggedBy     User     @relation("LoggedConsumptions", fields: [loggedById], references: [id])
+  voidedAt     DateTime?
+  voidedById   String?
+  voidedBy     User?    @relation("VoidedConsumptions", fields: [voidedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([companyId, siteId, createdAt])
+  @@index([siteId])
 }

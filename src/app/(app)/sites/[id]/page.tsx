@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { formatINR, toRupees } from "@/lib/money";
 import { getSitePnL } from "@/lib/site-financials";
 import { getAvailableMaterial } from "@/lib/material";
+import { getAvailableMaterialV2 } from "@/lib/site-materials";
+import { serializeUpdate } from "@/components/sites/updates-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,6 +78,7 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
 
   const isOwner = currentUser.role === "OWNER";
   const canManageTeam = isOwner || currentUser.role === "SITE_MANAGER";
+  const canPostUpdate = canManageTeam || currentUser.role === "SUPERVISOR";
   const companyId = currentUser.effectiveCompanyId ?? currentUser.companyId ?? undefined;
 
   // Fetch all data in parallel
@@ -92,6 +95,10 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
     incomes,
     siteAssignments,
     allSupervisors,
+    siteUpdatesRaw,
+    updatesTotal,
+    consumptionRaw,
+    availableMaterialV2,
   ] = await Promise.all([
     // Full P&L (received + spent + pnl + budgetUsedPercent)
     getSitePnL(id, site.contractValuePaise),
@@ -176,6 +183,26 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
       select: { id: true, name: true, role: true, title: true },
       orderBy: { name: "asc" },
     }),
+
+    // Site updates (first page)
+    db.siteUpdate.findMany({
+      where: { siteId: id, voidedAt: null },
+      include: { submittedBy: { select: { id: true, name: true, title: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }),
+    db.siteUpdate.count({ where: { siteId: id, voidedAt: null } }),
+
+    // Material consumption history
+    db.materialConsumption.findMany({
+      where: { siteId: id },
+      include: { loggedBy: { select: { name: true } } },
+      orderBy: { consumedDate: "desc" },
+      take: 30,
+    }),
+
+    // Available material v2
+    getAvailableMaterialV2(id),
   ]);
 
   const { received, spent, pnl: pnlAmount, budgetUsedPercent } = pnl;
@@ -248,6 +275,24 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
 
   const formatDate = (d: Date) =>
     d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+
+  const EDIT_WINDOW_MS = 30 * 60 * 1000;
+  const serializedUpdates = siteUpdatesRaw.map((u) =>
+    serializeUpdate(u, currentUser.id, canManageTeam)
+  );
+
+  const serializedConsumption = consumptionRaw.map((c) => ({
+    id: c.id,
+    itemName: c.itemName,
+    quantity: Number(c.quantity).toFixed(2),
+    unit: c.unit,
+    dateFormatted: formatDate(c.consumedDate),
+    note: c.note,
+    loggedByName: c.loggedBy.name,
+    isVoided: c.voidedAt !== null,
+  }));
+
+  void EDIT_WINDOW_MS; // used in serializeUpdate via import
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
@@ -436,6 +481,12 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
         siteId={id}
         siteName={site.name}
         availableMaterial={availableMaterial}
+        availableMaterialV2={availableMaterialV2}
+        consumptionHistory={serializedConsumption}
+        siteUpdates={serializedUpdates}
+        updatesTotal={updatesTotal}
+        canPostUpdate={canPostUpdate}
+        currentUserId={currentUser.id}
         purchaseCount={purchaseCount}
         recentPurchases={recentPurchases.map((p) => ({
           id: p.id,

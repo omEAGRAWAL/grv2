@@ -12,7 +12,11 @@ import { voidMaterialTransfer } from "@/app/actions/material-transfers";
 import { voidSiteIncome } from "@/app/actions/incomes";
 import { voidPurchase } from "@/app/actions/purchases";
 import type { AvailableItem } from "@/lib/material";
+import type { AvailableMaterialItem } from "@/lib/site-materials";
 import { TeamTab } from "./team-tab";
+import { UpdatesTab } from "./updates-tab";
+import type { SerializedUpdate } from "./update-card";
+import { voidConsumption } from "@/app/actions/material-consumption";
 import Decimal from "decimal.js";
 
 type SerializedTxn = {
@@ -100,6 +104,17 @@ type TeamMember = {
   title: string | null;
 };
 
+type SerializedConsumption = {
+  id: string;
+  itemName: string;
+  quantity: string;
+  unit: string;
+  dateFormatted: string;
+  note: string | null;
+  loggedByName: string;
+  isVoided: boolean;
+};
+
 type Props = {
   transactions: SerializedTxn[];
   currentPage: number;
@@ -109,6 +124,8 @@ type Props = {
   siteId: string;
   siteName: string;
   availableMaterial: AvailableItem[];
+  availableMaterialV2: AvailableMaterialItem[];
+  consumptionHistory: SerializedConsumption[];
   purchaseCount: number;
   recentPurchases: SerializedPurchase[];
   transfersIn: SerializedTransferIn[];
@@ -119,6 +136,11 @@ type Props = {
   canManageTeam: boolean;
   assignedTeam: TeamMember[];
   teamCandidates: TeamMember[];
+  // Updates tab
+  siteUpdates: SerializedUpdate[];
+  updatesTotal: number;
+  canPostUpdate: boolean;
+  currentUserId: string;
 };
 
 export function SiteTabs({
@@ -130,6 +152,8 @@ export function SiteTabs({
   siteId,
   siteName,
   availableMaterial,
+  availableMaterialV2,
+  consumptionHistory,
   purchaseCount,
   recentPurchases,
   transfersIn,
@@ -140,6 +164,10 @@ export function SiteTabs({
   canManageTeam,
   assignedTeam,
   teamCandidates,
+  siteUpdates,
+  updatesTotal,
+  canPostUpdate,
+  currentUserId,
 }: Props) {
   function pageUrl(p: number) {
     return p === 1 ? `/sites/${siteId}` : `/sites/${siteId}?page=${p}`;
@@ -171,6 +199,12 @@ export function SiteTabs({
             <span className="ml-1.5 text-xs opacity-60">
               ({activeIncomes.length})
             </span>
+          )}
+        </TabsTrigger>
+        <TabsTrigger value="updates">
+          Updates
+          {updatesTotal > 0 && (
+            <span className="ml-1.5 text-xs opacity-60">({updatesTotal})</span>
           )}
         </TabsTrigger>
         <TabsTrigger value="team">Team</TabsTrigger>
@@ -282,17 +316,123 @@ export function SiteTabs({
 
       {/* ── Material ── */}
       <TabsContent value="material" className="mt-4 space-y-6">
-        {/* Current stock */}
+        {/* Available stock (v2 — includes consumption) */}
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold">Current Stock</h3>
-          {availableMaterial.length === 0 ? (
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Available at This Site</h3>
+            <Link
+              href={`/sites/${siteId}/consume`}
+              className="text-xs text-primary underline underline-offset-2"
+            >
+              + Log Consumption
+            </Link>
+          </div>
+          {availableMaterialV2.length === 0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                No material currently at this site
-              </p>
+              <p className="text-sm text-muted-foreground">No material at this site</p>
             </div>
           ) : (
+            <div className="rounded-lg border overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Item</th>
+                    <th className="text-right px-3 py-2 font-medium text-muted-foreground">Purchased</th>
+                    <th className="text-right px-3 py-2 font-medium text-muted-foreground hidden sm:table-cell">Xfer In</th>
+                    <th className="text-right px-3 py-2 font-medium text-muted-foreground hidden sm:table-cell">Xfer Out</th>
+                    <th className="text-right px-3 py-2 font-medium text-muted-foreground">Consumed</th>
+                    <th className="text-right px-3 py-2 font-medium text-muted-foreground">Available</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {availableMaterialV2.map((item) => (
+                    <tr key={item.itemName} className={item.isNegative ? "bg-red-50" : ""}>
+                      <td className="px-3 py-2 font-medium">
+                        {item.itemName}
+                        <span className="ml-1 text-xs text-muted-foreground">{item.unit}</span>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                        {new Decimal(item.totalPurchased).toFixed(2)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground hidden sm:table-cell">
+                        {new Decimal(item.totalTransferredIn).toFixed(2)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground hidden sm:table-cell">
+                        {new Decimal(item.totalTransferredOut).toFixed(2)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                        {new Decimal(item.totalConsumed).toFixed(2)}
+                      </td>
+                      <td className={cn("px-3 py-2 text-right tabular-nums font-semibold", item.isNegative ? "text-red-600" : "")}>
+                        {new Decimal(item.available).toFixed(2)}
+                        {item.isNegative && <span className="ml-1">⚠</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Consumption history */}
+        {consumptionHistory.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Consumption History</h3>
             <div className="rounded-lg border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Date</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Item</th>
+                    <th className="text-right px-3 py-2 font-medium text-muted-foreground">Qty</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden sm:table-cell">Note</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground hidden sm:table-cell">By</th>
+                    {canManageTeam && <th className="px-3 py-2" />}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {consumptionHistory.map((c) => (
+                    <tr key={c.id} className={c.isVoided ? "opacity-50" : ""}>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{c.dateFormatted}</td>
+                      <td className={cn("px-3 py-2 font-medium", c.isVoided && "line-through")}>
+                        {c.itemName}
+                        {c.isVoided && (
+                          <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 border-gray-300 text-gray-400">
+                            VOIDED
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{c.quantity} {c.unit}</td>
+                      <td className="px-3 py-2 text-muted-foreground text-xs hidden sm:table-cell">{c.note ?? "—"}</td>
+                      <td className="px-3 py-2 hidden sm:table-cell">
+                        <UserBadge name={c.loggedByName} />
+                      </td>
+                      {canManageTeam && (
+                        <td className="px-1 py-2">
+                          {!c.isVoided && (
+                            <VoidButton
+                              action={voidConsumption.bind(null, c.id)}
+                              label="Void Consumption"
+                            />
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Legacy stock from material.ts (for transfer context) */}
+        {availableMaterial.length > 0 && (
+          <details className="text-sm">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+              Legacy stock view (excludes consumption)
+            </summary>
+            <div className="mt-2 rounded-lg border overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>
@@ -320,8 +460,8 @@ export function SiteTabs({
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+          </details>
+        )}
 
         {/* Purchase history */}
         {recentPurchases.length > 0 && (
@@ -568,6 +708,18 @@ export function SiteTabs({
             </table>
           </div>
         )}
+      </TabsContent>
+
+      {/* ── Updates ── */}
+      <TabsContent value="updates" className="mt-4">
+        <UpdatesTab
+          siteId={siteId}
+          initialUpdates={siteUpdates}
+          totalCount={updatesTotal}
+          canPost={canPostUpdate}
+          currentUserId={currentUserId}
+          canVoid={canManageTeam}
+        />
       </TabsContent>
 
       {/* ── Team ── */}
