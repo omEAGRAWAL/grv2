@@ -5,6 +5,10 @@ import { BottomTabBar } from "@/components/nav/bottom-tab-bar";
 import { QuickActionFab } from "@/components/nav/quick-action-fab";
 import { StopImpersonatingButton } from "@/components/super/stop-impersonating-button";
 
+// All routes in this group require an active session + live DB queries.
+// Force dynamic rendering so Next.js never attempts static prerendering here.
+export const dynamic = "force-dynamic";
+
 export default async function AppLayout({
   children,
 }: {

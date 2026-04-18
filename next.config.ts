@@ -1,7 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@prisma/client", "@prisma/adapter-neon"],
+  serverExternalPackages: ["@prisma/client", "@prisma/adapter-neon", "ws"],
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Prevent Node.js-only modules from being bundled for the browser/edge runtime
+      config.externals = [
+        ...(Array.isArray(config.externals) ? config.externals : []),
+        "ws",
+        "bufferutil",
+        "utf-8-validate",
+      ];
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

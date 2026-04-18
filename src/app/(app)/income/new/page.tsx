@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { IncomeForm } from "@/components/incomes/income-form";
 import type { Metadata } from "next";
 
+export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Record Income — ConstructHub" };
 
 export default async function IncomeNewPage({
