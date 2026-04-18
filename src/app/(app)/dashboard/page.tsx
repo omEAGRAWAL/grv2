@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Building2, Wallet, TrendingUp, AlertTriangle, AlertCircle } from "lucide-react";
+import { Building2, Wallet, TrendingUp, AlertTriangle, AlertCircle, Camera } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getCashWithTeam } from "@/lib/wallet";
 import { getSites } from "@/lib/sites";
@@ -81,9 +81,27 @@ export default async function DashboardPage() {
 
   const companyId = user.effectiveCompanyId ?? user.companyId ?? undefined;
 
-  const [stats, allSites] = await Promise.all([
+  const today = new Date();
+  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const [stats, allSites, myTodayAttendance, todayAttendanceSummary] = await Promise.all([
     getDashboardStats(companyId),
     getSites({ companyId, userId: user.id, role: user.role }),
+    companyId
+      ? db.attendance.findUnique({
+          where: { companyId_userId_date: { companyId, userId: user.id, date: todayDate } },
+          select: { status: true },
+        })
+      : Promise.resolve(null),
+    (companyId && (user.role === "OWNER" || user.role === "SITE_MANAGER"))
+      ? db.attendance.count({ where: { companyId, date: todayDate, status: "PRESENT" } })
+        .then(async (presentCount) => {
+          const total = await db.user.count({
+            where: { companyId, isActive: true, role: { notIn: ["OWNER", "SUPERADMIN"] } },
+          });
+          return { presentCount, total };
+        })
+      : Promise.resolve(null),
   ]);
 
   // Onboarding checklist — show only for owners who haven't dismissed it
@@ -233,6 +251,35 @@ export default async function DashboardPage() {
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Attendance card */}
+      <div className="rounded-lg border p-4 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Camera className="h-5 w-5 text-muted-foreground shrink-0" />
+          <div>
+            <p className="text-sm font-medium">Attendance</p>
+            {todayAttendanceSummary ? (
+              <p className="text-xs text-muted-foreground">
+                {todayAttendanceSummary.presentCount} / {todayAttendanceSummary.total} present today
+              </p>
+            ) : myTodayAttendance ? (
+              <p className="text-xs text-green-600 font-medium">Checked in today</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">Not checked in yet</p>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          {!myTodayAttendance && (
+            <Button asChild size="sm">
+              <Link href="/attendance/check-in">Check In</Link>
+            </Button>
+          )}
+          <Button asChild size="sm" variant="outline">
+            <Link href="/attendance">View</Link>
+          </Button>
+        </div>
       </div>
 
       {/* Sites section */}

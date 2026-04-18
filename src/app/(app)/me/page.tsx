@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Receipt, ArrowRightLeft, Info } from "lucide-react";
+import { Receipt, ArrowRightLeft, Info, Camera } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getWalletBalance } from "@/lib/wallet";
 import { formatINR } from "@/lib/money";
@@ -55,10 +55,26 @@ export default async function MePage({ searchParams }: Props) {
   if (!user) redirect("/login");
 
   const sp = await searchParams;
-  const [walletBalance, monthSummary] = await Promise.all([
+  const companyId = user.effectiveCompanyId ?? user.companyId;
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+  const [walletBalance, monthSummary, attendanceSummary] = await Promise.all([
     getWalletBalance(user.id),
     getMonthSummary(user.id),
+    companyId
+      ? db.attendance.groupBy({
+          by: ["status"],
+          where: { companyId, userId: user.id, date: { gte: monthStart, lte: monthEnd } },
+          _count: { status: true },
+        })
+      : Promise.resolve([]),
   ]);
+
+  const attMap = Object.fromEntries(
+    (attendanceSummary as { status: string; _count: { status: number } }[]).map((r) => [r.status, r._count.status])
+  );
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
   return (
@@ -171,6 +187,39 @@ export default async function MePage({ searchParams }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Attendance this month */}
+      {companyId && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+                <Camera className="h-4 w-4 text-muted-foreground" />
+                Attendance This Month
+              </CardTitle>
+              <Link href="/attendance/history" className="text-xs text-blue-600 underline">
+                View history
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-xl font-bold text-green-600">{attMap["PRESENT"] ?? 0}</p>
+                <p className="text-xs text-muted-foreground">Present</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-yellow-600">{attMap["HALF_DAY"] ?? 0}</p>
+                <p className="text-xs text-muted-foreground">Half Day</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-red-600">{attMap["ABSENT"] ?? 0}</p>
+                <p className="text-xs text-muted-foreground">Absent</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Wallet history */}
       <WalletHistorySection

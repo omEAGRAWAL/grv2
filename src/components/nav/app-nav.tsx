@@ -23,6 +23,7 @@ type NavUser = {
 const OWNER_LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/sites", label: "Sites" },
+  { href: "/attendance", label: "Attendance" },
   { href: "/employees", label: "Employees" },
   { href: "/vendors", label: "Vendors" },
   { href: "/reports", label: "Reports" },
@@ -31,6 +32,7 @@ const OWNER_LINKS = [
 const EMPLOYEE_LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/sites", label: "Sites" },
+  { href: "/attendance", label: "Attendance" },
 ];
 
 export function AppNav({ user }: { user: NavUser }) {

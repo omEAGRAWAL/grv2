@@ -88,6 +88,7 @@ model Company {
   materialTransfers MaterialTransfer[]
   siteIncomes       SiteIncome[]
   siteAssignments   SiteAssignment[]
+  attendances       Attendance[]
 }
 
 model User {
@@ -120,6 +121,8 @@ model User {
   siteIncomesAsLogger              SiteIncome[]        @relation("LoggedIncomes")
   siteIncomesAsVoider              SiteIncome[]        @relation("VoidedIncomes")
   siteAssignments                  SiteAssignment[]
+  attendancesAsUser                Attendance[]        @relation("AttendanceUser")
+  attendancesAsMarker              Attendance[]        @relation("AttendanceMarkedBy")
 
   @@unique([companyId, username])
   @@index([companyId])
@@ -145,6 +148,7 @@ model Site {
   transfersOut       MaterialTransfer[] @relation("FromTransfers")
   incomes            SiteIncome[]
   siteAssignments    SiteAssignment[]
+  attendances        Attendance[]
 
   @@index([companyId])
 }
@@ -292,4 +296,29 @@ model SiteAssignment {
   @@index([companyId])
   @@index([userId])
   @@index([siteId])
+}
+
+model Attendance {
+  id               String           @id @default(cuid())
+  companyId        String
+  company          Company          @relation(fields: [companyId], references: [id])
+  userId           String
+  user             User             @relation("AttendanceUser", fields: [userId], references: [id])
+  markedById       String
+  markedBy         User             @relation("AttendanceMarkedBy", fields: [markedById], references: [id])
+  date             DateTime         @db.Date
+  status           AttendanceStatus
+  method           AttendanceMethod
+  photoUrl         String?
+  photoPublicId    String?
+  latitude         Float?
+  longitude        Float?
+  locationAccuracy Float?
+  siteId           String?
+  site             Site?            @relation(fields: [siteId], references: [id])
+  createdAt        DateTime         @default(now())
+
+  @@unique([companyId, userId, date])
+  @@index([companyId, date])
+  @@index([userId])
 }
