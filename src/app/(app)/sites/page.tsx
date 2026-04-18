@@ -19,7 +19,13 @@ export default async function SitesPage({
   if (!currentUser) redirect("/login");
 
   const { status } = await searchParams;
-  const sites = await getSites(status);
+  const companyId = currentUser.effectiveCompanyId ?? currentUser.companyId ?? undefined;
+  const sites = await getSites({
+    status,
+    companyId,
+    userId: currentUser.id,
+    role: currentUser.role,
+  });
 
   const siteIds = sites.map((s) => s.id);
   const [spendMap, incomeMap] = await Promise.all([

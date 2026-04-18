@@ -23,9 +23,10 @@ type VendorData = {
 type Props = {
   vendor?: VendorData; // undefined = create mode
   onSuccess?: (vendorId: string, vendorName: string) => void;
+  onCancel?: () => void;
 };
 
-export function VendorForm({ vendor, onSuccess }: Props) {
+export function VendorForm({ vendor, onSuccess, onCancel }: Props) {
   const action = vendor ? updateVendor : createVendor;
   const [state, formAction, isPending] = useActionState<
     ActionResult | null,
@@ -110,15 +111,22 @@ export function VendorForm({ vendor, onSuccess }: Props) {
         />
       </div>
 
-      <Button type="submit" disabled={isPending} className="w-full">
-        {isPending
-          ? vendor
-            ? "Saving…"
-            : "Creating…"
-          : vendor
-            ? "Save Changes"
-            : "Create Vendor"}
-      </Button>
+      <div className="flex justify-end gap-2">
+        {onCancel && (
+          <Button type="button" variant="ghost" onClick={onCancel} disabled={isPending}>
+            Cancel
+          </Button>
+        )}
+        <Button type="submit" disabled={isPending}>
+          {isPending
+            ? vendor
+              ? "Saving…"
+              : "Creating…"
+            : vendor
+              ? "Save Changes"
+              : "Create Vendor"}
+        </Button>
+      </div>
     </form>
   );
 }

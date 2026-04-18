@@ -5,7 +5,18 @@ export const metadata: Metadata = {
   title: "Sign In — ConstructHub",
 };
 
-export default function LoginPage() {
+interface Props {
+  searchParams: Promise<{ error?: string; next?: string }>;
+}
+
+export default async function LoginPage({ searchParams }: Props) {
+  const { error, next } = await searchParams;
+
+  const initialError =
+    error === "suspended"
+      ? "Your company account has been suspended. Contact support."
+      : undefined;
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-6">
@@ -15,7 +26,7 @@ export default function LoginPage() {
             Construction finance management
           </p>
         </div>
-        <LoginForm />
+        <LoginForm initialError={initialError} next={next} />
       </div>
     </main>
   );

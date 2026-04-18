@@ -12,6 +12,41 @@ const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
 const store = new Map<string, RateLimitEntry>();
 
+// ─── Signup rate limit (IP-based) ─────────────────────────────────────────────
+
+const SIGNUP_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const SIGNUP_MAX = 3;
+
+interface SignupEntry {
+  count: number;
+  firstAttemptAt: number;
+}
+
+const signupStore = new Map<string, SignupEntry>();
+
+export function checkSignupRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = signupStore.get(ip);
+  if (!entry) return false;
+  if (now - entry.firstAttemptAt > SIGNUP_WINDOW_MS) return false;
+  return entry.count >= SIGNUP_MAX;
+}
+
+export function recordSignupAttempt(ip: string): void {
+  const now = Date.now();
+  const entry = signupStore.get(ip);
+  if (!entry || now - entry.firstAttemptAt > SIGNUP_WINDOW_MS) {
+    signupStore.set(ip, { count: 1, firstAttemptAt: now });
+  } else {
+    signupStore.set(ip, { count: entry.count + 1, firstAttemptAt: entry.firstAttemptAt });
+  }
+}
+
+// Exported for tests only
+export const _signupStore = signupStore;
+export const SIGNUP_MAX_EXPORT = SIGNUP_MAX;
+export const SIGNUP_WINDOW_MS_EXPORT = SIGNUP_WINDOW_MS;
+
 function getEntry(key: string): RateLimitEntry {
   const now = Date.now();
   const entry = store.get(key);

@@ -32,9 +32,9 @@ export async function getWalletBalance(userId: string): Promise<bigint> {
 /**
  * Total cash currently held by all active employees across their wallets.
  */
-export async function getCashWithTeam(): Promise<bigint> {
+export async function getCashWithTeam(companyId?: string): Promise<bigint> {
   const employees = await db.user.findMany({
-    where: { role: "EMPLOYEE", isActive: true },
+    where: { role: "EMPLOYEE", isActive: true, ...(companyId ? { companyId } : {}) },
     select: { id: true },
   });
 

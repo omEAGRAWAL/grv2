@@ -14,6 +14,7 @@ import {
 const LoginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
+  next: z.string().optional(),
 });
 
 export async function loginAction(
@@ -23,6 +24,7 @@ export async function loginAction(
   const raw = {
     username: formData.get("username"),
     password: formData.get("password"),
+    next: formData.get("next") ?? undefined,
   };
 
   const result = LoginSchema.safeParse(raw);
@@ -30,7 +32,7 @@ export async function loginAction(
     return { error: "Invalid username or password" };
   }
 
-  const { username, password } = result.data;
+  const { username, password, next } = result.data;
   const normalizedUsername = username.toLowerCase().trim();
 
   // Check rate limit first (fail fast before hitting DB)
@@ -59,8 +61,18 @@ export async function loginAction(
   }
 
   if (!user.isActive) {
-    // Don't increment rate limit for inactive users (known state, not brute force)
     return { error: "Your account has been deactivated. Contact your manager." };
+  }
+
+  // Reject login if company is suspended
+  if (user.companyId) {
+    const company = await db.company.findUnique({
+      where: { id: user.companyId },
+      select: { status: true },
+    });
+    if (company?.status === "SUSPENDED") {
+      return { error: "This account has been suspended. Contact support." };
+    }
   }
 
   // Success
@@ -77,7 +89,10 @@ export async function loginAction(
     data: { lastLoginAt: new Date() },
   });
 
-  redirect("/dashboard");
+  // Honour ?next= param; guard against open-redirect by requiring relative paths
+  const destination =
+    next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  redirect(destination);
 }
 
 export async function logoutAction(): Promise<void> {

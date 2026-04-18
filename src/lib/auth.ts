@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { sessionOptions, type SessionData } from "@/lib/session-config";
 import type { User } from "@prisma/client";
@@ -45,6 +46,17 @@ export async function getCurrentUser(): Promise<User & { effectiveCompanyId?: st
   }
   if (!user.isActive) {
     throw new Error("User inactive");
+  }
+  // Check if the user's company is suspended; if so, destroy session and redirect
+  if (user.companyId && !session.impersonatingCompanyId) {
+    const company = await db.company.findUnique({
+      where: { id: user.companyId },
+      select: { status: true },
+    });
+    if (company?.status === "SUSPENDED") {
+      await session.destroy();
+      redirect("/login?error=suspended");
+    }
   }
   const effectiveCompanyId =
     session.impersonatingCompanyId ?? user.companyId ?? undefined;

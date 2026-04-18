@@ -136,7 +136,7 @@ describe("getSites", () => {
   it("filters by status when provided", async () => {
     vi.mocked(db.site.findMany).mockResolvedValue([fakeSites[0]] as any);
 
-    await getSites("ACTIVE");
+    await getSites({ status: "ACTIVE" });
     expect(vi.mocked(db.site.findMany)).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { status: "ACTIVE" },
@@ -148,7 +148,7 @@ describe("getSites", () => {
   it("ignores invalid status values and fetches all", async () => {
     vi.mocked(db.site.findMany).mockResolvedValue(fakeSites as any);
 
-    await getSites("INVALID_STATUS");
+    await getSites({ status: "INVALID_STATUS" });
     expect(vi.mocked(db.site.findMany)).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {},

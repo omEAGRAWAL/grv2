@@ -3,9 +3,14 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { hashPassword, requireOwner } from "@/lib/auth";
+import { hashPassword, requireRole } from "@/lib/auth";
 
 type ActionResult = { success: true } | { success: false; error: string };
+
+const INDIAN_MOBILE_RE = /^[6-9]\d{9}$/;
+
+const ASSIGNABLE_ROLES = ["SITE_MANAGER", "SUPERVISOR", "WORKER", "EMPLOYEE"] as const;
+type AssignableRole = typeof ASSIGNABLE_ROLES[number];
 
 // ─── Create Employee ──────────────────────────────────────────────────────────
 
@@ -20,15 +25,22 @@ const CreateEmployeeSchema = z.object({
       "Username can only contain lowercase letters, numbers, and underscores"
     ),
   password: z.string().min(8, "Password must be at least 8 characters"),
+  role: z.enum(["SITE_MANAGER", "SUPERVISOR", "WORKER", "EMPLOYEE"]).default("EMPLOYEE"),
+  title: z.string().max(100).optional(),
+  mobileNumber: z
+    .string()
+    .regex(INDIAN_MOBILE_RE, "Enter a valid 10-digit Indian mobile number")
+    .optional()
+    .or(z.literal("")),
 });
 
 export async function createEmployee(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
-  let owner;
+  let caller;
   try {
-    owner = await requireOwner();
+    caller = await requireRole(["OWNER", "SITE_MANAGER"]);
   } catch {
     return { success: false, error: "Unauthorized" };
   }
@@ -37,6 +49,9 @@ export async function createEmployee(
     name: formData.get("name"),
     username: formData.get("username"),
     password: formData.get("password"),
+    role: formData.get("role") ?? "EMPLOYEE",
+    title: formData.get("title") ?? undefined,
+    mobileNumber: formData.get("mobileNumber") ?? "",
   };
 
   const result = CreateEmployeeSchema.safeParse(raw);
@@ -44,11 +59,16 @@ export async function createEmployee(
     return { success: false, error: result.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const { name, username, password } = result.data;
-  const normalizedUsername = username.toLowerCase();
-  const companyId = owner.effectiveCompanyId;
+  const { name, username, password, role, title, mobileNumber } = result.data;
 
-  // Username must be unique within the same company
+  // SITE_MANAGER cannot create other SITE_MANAGERs
+  if (caller.role === "SITE_MANAGER" && role === "SITE_MANAGER") {
+    return { success: false, error: "Site managers cannot create other site managers" };
+  }
+
+  const normalizedUsername = username.toLowerCase();
+  const companyId = caller.effectiveCompanyId;
+
   const existing = await db.user.findFirst({
     where: { companyId: companyId ?? null, username: normalizedUsername },
   });
@@ -64,7 +84,9 @@ export async function createEmployee(
       username: normalizedUsername,
       passwordHash,
       name,
-      role: "EMPLOYEE",
+      role: role as AssignableRole,
+      title: title || null,
+      mobileNumber: mobileNumber || null,
       joinedAt: new Date(),
       isActive: true,
     },
@@ -86,7 +108,7 @@ export async function resetPassword(
   formData: FormData
 ): Promise<ActionResult> {
   try {
-    await requireOwner();
+    await requireRole(["OWNER", "SITE_MANAGER"]);
   } catch {
     return { success: false, error: "Unauthorized" };
   }
@@ -122,8 +144,8 @@ export async function toggleEmployeeActive(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
-  const owner = await requireOwner().catch(() => null);
-  if (!owner) return { success: false, error: "Unauthorized" };
+  const caller = await requireRole(["OWNER", "SITE_MANAGER"]).catch(() => null);
+  if (!caller) return { success: false, error: "Unauthorized" };
 
   const result = ToggleActiveSchema.safeParse({
     userId: formData.get("userId"),
@@ -136,7 +158,7 @@ export async function toggleEmployeeActive(
   const { userId, active } = result.data;
   const isActive = active === "true";
 
-  if (userId === owner.id) {
+  if (userId === caller.id) {
     return { success: false, error: "You cannot deactivate your own account" };
   }
 

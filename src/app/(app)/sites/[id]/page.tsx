@@ -75,6 +75,8 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
   if (!site) notFound();
 
   const isOwner = currentUser.role === "OWNER";
+  const canManageTeam = isOwner || currentUser.role === "SITE_MANAGER";
+  const companyId = currentUser.effectiveCompanyId ?? currentUser.companyId ?? undefined;
 
   // Fetch all data in parallel
   const [
@@ -88,6 +90,8 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
     transfersIn,
     transfersOut,
     incomes,
+    siteAssignments,
+    allSupervisors,
   ] = await Promise.all([
     // Full P&L (received + spent + pnl + budgetUsedPercent)
     getSitePnL(id, site.contractValuePaise),
@@ -155,6 +159,23 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
       include: { loggedBy: { select: { name: true } } },
       orderBy: { receivedDate: "desc" },
     }),
+
+    // Assigned supervisors
+    db.siteAssignment.findMany({
+      where: { siteId: id },
+      include: { user: { select: { id: true, name: true, role: true, title: true } } },
+    }),
+
+    // All supervisors/site managers in this company (for the assign picker)
+    db.user.findMany({
+      where: {
+        companyId,
+        role: { in: ["SUPERVISOR", "SITE_MANAGER"] },
+        isActive: true,
+      },
+      select: { id: true, name: true, role: true, title: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   const { received, spent, pnl: pnlAmount, budgetUsedPercent } = pnl;
@@ -213,6 +234,17 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
 
   const hasNext = page * ITEMS_PER_PAGE < txnCount;
   const hasPrev = page > 1;
+
+  const assignedTeam = siteAssignments.map((a) => ({
+    id: a.user.id,
+    name: a.user.name,
+    role: a.user.role,
+    title: a.user.title,
+  }));
+  const assignedIds = new Set(assignedTeam.map((u) => u.id));
+  const teamCandidates = allSupervisors
+    .filter((u) => !assignedIds.has(u.id))
+    .map((u) => ({ id: u.id, name: u.name, role: u.role, title: u.title }));
 
   const formatDate = (d: Date) =>
     d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
@@ -449,6 +481,9 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
         }))}
         incomeTotalFormatted={formatINR(incomeTotal)}
         isOwner={isOwner}
+        canManageTeam={canManageTeam}
+        assignedTeam={assignedTeam}
+        teamCandidates={teamCandidates}
       />
     </div>
   );

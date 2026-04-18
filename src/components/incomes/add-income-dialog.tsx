@@ -1,15 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { PlusCircle } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { FormDialog } from "@/components/form-dialog";
 import { IncomeForm } from "./income-form";
 
 type SiteOption = { id: string; name: string };
@@ -21,28 +15,29 @@ type Props = {
 };
 
 export function AddIncomeDialog({ sites, defaultSiteId, trigger }: Props) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger ?? (
+    <FormDialog
+      trigger={
+        trigger ?? (
           <Button size="sm" variant="outline">
             <PlusCircle className="h-4 w-4 mr-1.5" />
             Add Income
           </Button>
-        )}
-      </DialogTrigger>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Record Income</DialogTitle>
-        </DialogHeader>
+        )
+      }
+      title="Record Income"
+    >
+      {({ close }) => (
         <IncomeForm
           sites={sites}
           defaultSiteId={defaultSiteId}
-          onSuccess={() => setOpen(false)}
+          onSuccess={() => {
+            toast.success("Income recorded");
+            close();
+          }}
+          onCancel={close}
         />
-      </DialogContent>
-    </Dialog>
+      )}
+    </FormDialog>
   );
 }

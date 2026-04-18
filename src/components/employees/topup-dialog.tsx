@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,6 +56,7 @@ export function TopUpDialog({
 
   useEffect(() => {
     if (state?.success) {
+      toast.success("Wallet topped up");
       setAmount("");
       onOpenChange(false);
       router.refresh();

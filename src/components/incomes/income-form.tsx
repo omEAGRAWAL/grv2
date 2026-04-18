@@ -21,6 +21,7 @@ type Props = {
   sites: SiteOption[];
   defaultSiteId?: string;
   onSuccess?: () => void;
+  onCancel?: () => void;
 };
 
 type ActionResult = { success: true } | { success: false; error: string };
@@ -32,7 +33,7 @@ const INCOME_TYPE_LABELS: Record<string, string> = {
   RETENTION: "Retention",
 };
 
-export function IncomeForm({ sites, defaultSiteId, onSuccess }: Props) {
+export function IncomeForm({ sites, defaultSiteId, onSuccess, onCancel }: Props) {
   const today = new Date().toISOString().split("T")[0];
 
   const [state, formAction, isPending] = useActionState<
@@ -137,9 +138,16 @@ export function IncomeForm({ sites, defaultSiteId, onSuccess }: Props) {
         />
       </div>
 
-      <Button type="submit" disabled={isPending} className="w-full" size="lg">
-        {isPending ? "Recording…" : "Record Income"}
-      </Button>
+      <div className="flex justify-end gap-2">
+        {onCancel && (
+          <Button type="button" variant="ghost" onClick={onCancel} disabled={isPending}>
+            Cancel
+          </Button>
+        )}
+        <Button type="submit" disabled={isPending} size="lg">
+          {isPending ? "Recording…" : "Record Income"}
+        </Button>
+      </div>
     </form>
   );
 }

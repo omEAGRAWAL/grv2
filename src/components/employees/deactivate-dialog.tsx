@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,14 +33,15 @@ export function DeactivateDialog({
     null
   );
 
+  const action = isActive ? "Deactivate" : "Reactivate";
+
   useEffect(() => {
     if (state?.success) {
+      toast.success(`Employee ${action.toLowerCase()}d`);
       onOpenChange(false);
       router.refresh();
     }
-  }, [state, onOpenChange, router]);
-
-  const action = isActive ? "Deactivate" : "Reactivate";
+  }, [state, onOpenChange, router, action]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

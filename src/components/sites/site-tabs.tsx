@@ -12,6 +12,7 @@ import { voidMaterialTransfer } from "@/app/actions/material-transfers";
 import { voidSiteIncome } from "@/app/actions/incomes";
 import { voidPurchase } from "@/app/actions/purchases";
 import type { AvailableItem } from "@/lib/material";
+import { TeamTab } from "./team-tab";
 import Decimal from "decimal.js";
 
 type SerializedTxn = {
@@ -92,6 +93,13 @@ const INCOME_TYPE_LABELS: Record<string, string> = {
   RETENTION: "Retention",
 };
 
+type TeamMember = {
+  id: string;
+  name: string;
+  role: string;
+  title: string | null;
+};
+
 type Props = {
   transactions: SerializedTxn[];
   currentPage: number;
@@ -108,6 +116,9 @@ type Props = {
   incomes: SerializedIncome[];
   incomeTotalFormatted: string;
   isOwner: boolean;
+  canManageTeam: boolean;
+  assignedTeam: TeamMember[];
+  teamCandidates: TeamMember[];
 };
 
 export function SiteTabs({
@@ -126,6 +137,9 @@ export function SiteTabs({
   incomes,
   incomeTotalFormatted,
   isOwner,
+  canManageTeam,
+  assignedTeam,
+  teamCandidates,
 }: Props) {
   function pageUrl(p: number) {
     return p === 1 ? `/sites/${siteId}` : `/sites/${siteId}?page=${p}`;
@@ -558,11 +572,12 @@ export function SiteTabs({
 
       {/* ── Team ── */}
       <TabsContent value="team" className="mt-4">
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            Team assignments — coming soon
-          </p>
-        </div>
+        <TeamTab
+          siteId={siteId}
+          assigned={assignedTeam}
+          candidates={teamCandidates}
+          canManage={canManageTeam}
+        />
       </TabsContent>
     </Tabs>
   );
