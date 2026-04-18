@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { PackageMinus } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserBadge } from "@/components/user-badge";
 import { VoidButton } from "@/components/void-button";
@@ -134,6 +136,7 @@ type Props = {
   incomeTotalFormatted: string;
   isOwner: boolean;
   canManageTeam: boolean;
+  canConsume: boolean;
   assignedTeam: TeamMember[];
   teamCandidates: TeamMember[];
   // Updates tab
@@ -162,6 +165,7 @@ export function SiteTabs({
   incomeTotalFormatted,
   isOwner,
   canManageTeam,
+  canConsume,
   assignedTeam,
   teamCandidates,
   siteUpdates,
@@ -318,15 +322,7 @@ export function SiteTabs({
       <TabsContent value="material" className="mt-4 space-y-6">
         {/* Available stock (v2 — includes consumption) */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Available at This Site</h3>
-            <Link
-              href={`/sites/${siteId}/consume`}
-              className="text-xs text-primary underline underline-offset-2"
-            >
-              + Log Consumption
-            </Link>
-          </div>
+          <h3 className="text-sm font-semibold">Available at This Site</h3>
           {availableMaterialV2.length === 0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center">
               <p className="text-sm text-muted-foreground">No material at this site</p>
@@ -372,6 +368,14 @@ export function SiteTabs({
                 </tbody>
               </table>
             </div>
+          )}
+          {canConsume && (
+            <Button asChild size="sm" className="w-full sm:w-auto">
+              <Link href={`/sites/${siteId}/consume`}>
+                <PackageMinus className="h-4 w-4 mr-2" />
+                Log Material Consumption
+              </Link>
+            </Button>
           )}
         </div>
 

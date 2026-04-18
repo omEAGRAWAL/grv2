@@ -273,6 +273,11 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
     .filter((u) => !assignedIds.has(u.id))
     .map((u) => ({ id: u.id, name: u.name, role: u.role, title: u.title }));
 
+  const isAssignedSupervisor =
+    currentUser.role === "SUPERVISOR" &&
+    siteAssignments.some((a) => a.user.id === currentUser.id);
+  const canConsumeMaterial = canManageTeam || isAssignedSupervisor;
+
   const formatDate = (d: Date) =>
     d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
@@ -533,6 +538,7 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
         incomeTotalFormatted={formatINR(incomeTotal)}
         isOwner={isOwner}
         canManageTeam={canManageTeam}
+        canConsume={canConsumeMaterial}
         assignedTeam={assignedTeam}
         teamCandidates={teamCandidates}
       />

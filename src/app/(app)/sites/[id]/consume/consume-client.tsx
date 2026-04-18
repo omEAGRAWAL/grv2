@@ -307,8 +307,9 @@ function BulkForm({
                   type="button"
                   onClick={() => removeRow(row.id)}
                   className="text-muted-foreground hover:text-destructive"
+                  aria-label={`Remove row ${idx + 1}`}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
                 </button>
               )}
             </div>
@@ -405,9 +406,9 @@ export function ConsumeClient({ siteId, initialAvailable, canConsume }: ConsumeC
             onClick={refreshAvailable}
             disabled={refreshing}
             className="text-muted-foreground hover:text-foreground"
-            title="Refresh"
+            aria-label="Refresh available materials"
           >
-            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} aria-hidden="true" />
           </button>
         </div>
         <AvailableTable items={available} />
