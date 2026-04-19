@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { getAssetCostForSite } from "@/lib/assets";
 
 // ─── Income helpers ───────────────────────────────────────────────────────────
 
@@ -81,8 +82,8 @@ export async function getSitePnL(
  *
  * Net formula: spend = A + B + C - D
  */
-export async function getSiteSpend(siteId: string): Promise<bigint> {
-  const [walletAgg, purchaseAgg, transferInAgg, transferOutAgg] =
+export async function getSiteSpend(siteId: string, asOfDate: Date = new Date()): Promise<bigint> {
+  const [walletAgg, purchaseAgg, transferInAgg, transferOutAgg, assetCost] =
     await Promise.all([
       // A: wallet DEBIT transactions (EXPENSE + VENDOR_PAYMENT)
       db.walletTransaction.aggregate({
@@ -116,14 +117,18 @@ export async function getSiteSpend(siteId: string): Promise<bigint> {
         _sum: { costMovedPaise: true },
         where: { fromSiteId: siteId, voidedAt: null },
       }),
+
+      // E: asset allocation costs (Phase 11)
+      getAssetCostForSite(siteId, asOfDate),
     ]);
 
   const A = walletAgg._sum.amountPaise ?? 0n;
   const B = purchaseAgg._sum.totalPaise ?? 0n;
   const C = transferInAgg._sum.costMovedPaise ?? 0n;
   const D = transferOutAgg._sum.costMovedPaise ?? 0n;
+  const E = assetCost;
 
-  return A + B + C - D;
+  return A + B + C - D + E;
 }
 
 /**

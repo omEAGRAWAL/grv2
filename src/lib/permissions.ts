@@ -22,7 +22,16 @@ export type Action =
   | "export:csv"
   | "manage:vendors"
   | "manage:company"
-  | "super:admin";
+  | "super:admin"
+  // Phase 11 — Asset Management
+  | "asset:view"
+  | "asset:create"
+  | "asset:edit"
+  | "asset:delete"
+  | "allocation:view"
+  | "allocation:create"
+  | "allocation:void"
+  | "category:manage";
 
 type ResourceContext = {
   /** userId of the resource owner (e.g. whose expense is being voided) */
@@ -57,6 +66,8 @@ const ROLE_PERMISSIONS: Record<string, Set<Action>> = {
     "view:reports",
     "export:csv",
     "manage:vendors",
+    "asset:view",
+    "allocation:view",
   ]),
   OWNER: new Set<Action>([
     "manage:company",
@@ -80,6 +91,14 @@ const ROLE_PERMISSIONS: Record<string, Set<Action>> = {
     "view:reports",
     "export:csv",
     "manage:vendors",
+    "asset:view",
+    "asset:create",
+    "asset:edit",
+    "asset:delete",
+    "allocation:view",
+    "allocation:create",
+    "allocation:void",
+    "category:manage",
   ]),
   SITE_MANAGER: new Set<Action>([
     "view:site",
@@ -96,6 +115,13 @@ const ROLE_PERMISSIONS: Record<string, Set<Action>> = {
     "view:reports",
     "export:csv",
     "manage:vendors",
+    "asset:view",
+    "asset:create",
+    "asset:edit",
+    "allocation:view",
+    "allocation:create",
+    "allocation:void",
+    "category:manage",
   ]),
   SUPERVISOR: new Set<Action>([
     "view:site",
@@ -103,6 +129,9 @@ const ROLE_PERMISSIONS: Record<string, Set<Action>> = {
     "void:expense",
     "create:purchase",
     "void:purchase",
+    "asset:view",
+    "allocation:view",
+    "allocation:create",
   ]),
   WORKER: new Set<Action>([
     "view:site",

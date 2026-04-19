@@ -70,6 +70,17 @@ enum AttendanceMethod {
   MANUAL
 }
 
+enum OwnershipType {
+  OWNED
+  RENTED
+}
+
+enum AssetStatus {
+  AVAILABLE
+  MAINTENANCE
+  DECOMMISSIONED
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model Company {
@@ -91,6 +102,9 @@ model Company {
   attendances         Attendance[]
   siteUpdates         SiteUpdate[]
   materialConsumptions MaterialConsumption[]
+  assetCategories     AssetCategory[]
+  assets              Asset[]
+  assetAllocations    AssetAllocation[]
 }
 
 model User {
@@ -129,6 +143,8 @@ model User {
   voidedUpdates                    SiteUpdate[]        @relation("VoidedUpdates")
   loggedConsumptions               MaterialConsumption[] @relation("LoggedConsumptions")
   voidedConsumptions               MaterialConsumption[] @relation("VoidedConsumptions")
+  loggedAllocations                AssetAllocation[]     @relation("LoggedAllocations")
+  voidedAllocations                AssetAllocation[]     @relation("VoidedAllocations")
 
   @@unique([companyId, username])
   @@index([companyId])
@@ -157,6 +173,7 @@ model Site {
   attendances          Attendance[]
   siteUpdates          SiteUpdate[]
   materialConsumptions MaterialConsumption[]
+  assetAllocations     AssetAllocation[]
 
   @@index([companyId])
 }
@@ -373,4 +390,68 @@ model MaterialConsumption {
 
   @@index([companyId, siteId, createdAt])
   @@index([siteId])
+}
+
+model AssetCategory {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assets    Asset[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model Asset {
+  id                    String        @id @default(cuid())
+  companyId             String
+  company               Company       @relation(fields: [companyId], references: [id])
+  categoryId            String
+  category              AssetCategory @relation(fields: [categoryId], references: [id])
+  name                  String
+  ownershipType         OwnershipType
+  defaultDailyCostPaise BigInt?
+  status                AssetStatus   @default(AVAILABLE)
+  notes                 String?
+  photoUrl              String?
+  photoPublicId         String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  allocations AssetAllocation[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([categoryId])
+}
+
+model AssetAllocation {
+  id                String    @id @default(cuid())
+  companyId         String
+  company           Company   @relation(fields: [companyId], references: [id])
+  assetId           String
+  asset             Asset     @relation(fields: [assetId], references: [id])
+  siteId            String?
+  site              Site?     @relation(fields: [siteId], references: [id])
+  startDate         DateTime  @db.Date
+  endDate           DateTime? @db.Date
+  dailyCostPaise    BigInt?
+  includeInSiteCost Boolean   @default(true)
+  notes             String?
+  loggedById        String
+  loggedBy          User      @relation("LoggedAllocations", fields: [loggedById], references: [id])
+  voidedAt          DateTime?
+  voidedById        String?
+  voidedBy          User?     @relation("VoidedAllocations", fields: [voidedById], references: [id])
+  createdAt         DateTime  @default(now())
+
+  @@index([companyId])
+  @@index([assetId, endDate])
+  @@index([siteId])
+  @@index([startDate])
 }

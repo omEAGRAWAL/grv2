@@ -7,6 +7,7 @@ import { getSites } from "@/lib/sites";
 import { formatINR } from "@/lib/money";
 import { db } from "@/lib/db";
 import { getBatchSiteSpend } from "@/lib/site-financials";
+import { getIdleAssets } from "@/lib/assets";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -187,6 +188,12 @@ export default async function DashboardPage() {
     }
   }
 
+  // Idle assets nudge (OWNER only)
+  let idleAssets: { id: string; name: string; category: { name: string }; idleDays: number }[] = [];
+  if (user.role === "OWNER" && companyId) {
+    idleAssets = await getIdleAssets(companyId, 5);
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
       <div>
@@ -311,6 +318,36 @@ export default async function DashboardPage() {
           </Button>
         </div>
       </div>
+
+      {/* Idle assets nudge */}
+      {idleAssets.length > 0 && (
+        <details className="rounded-lg border border-orange-200 bg-orange-50 p-4 group">
+          <summary className="text-xs font-semibold uppercase tracking-wide text-orange-800 cursor-pointer list-none flex items-center justify-between">
+            <span>
+              <AlertTriangle className="inline h-3.5 w-3.5 mr-1.5 text-orange-600" />
+              {idleAssets.length} Asset{idleAssets.length !== 1 ? "s" : ""} Idle in Yard ({">"}5 days)
+            </span>
+            <span className="text-xs font-normal text-orange-600">▼ details</span>
+          </summary>
+          <div className="mt-3 space-y-1.5">
+            {idleAssets.map((a) => (
+              <Link
+                key={a.id}
+                href={`/assets/${a.id}`}
+                className="flex items-center justify-between text-sm hover:underline"
+              >
+                <span className="font-medium text-orange-900">{a.name}</span>
+                <span className="text-xs text-orange-600">{a.category.name} · {a.idleDays}d idle</span>
+              </Link>
+            ))}
+          </div>
+          <div className="mt-3">
+            <Link href="/assets" className="text-xs text-orange-700 underline underline-offset-2">
+              Go to Assets →
+            </Link>
+          </div>
+        </details>
+      )}
 
       {/* Sites section */}
       <div className="space-y-3">

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { hashPassword, getSession } from "@/lib/auth";
 import type { SessionData } from "@/lib/session-config";
 import { checkSignupRateLimit, recordSignupAttempt } from "@/lib/rate-limit";
+import { DEFAULT_CATEGORY_NAMES } from "@/lib/assets";
 
 const INDIAN_MOBILE_RE = /^[6-9]\d{9}$/;
 
@@ -96,6 +97,14 @@ export async function signupCompany(
         mobileVerified: false,
         isActive: true,
       },
+    });
+    // Seed default asset categories for this company
+    await tx.assetCategory.createMany({
+      data: DEFAULT_CATEGORY_NAMES.map((name) => ({
+        companyId: newCompany.id,
+        name,
+        isDefault: true,
+      })),
     });
     return newCompany;
   });

@@ -13,6 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EditSiteButton } from "@/components/sites/edit-site-dialog";
 import { SiteTabs, TYPE_CLASSES } from "@/components/sites/site-tabs";
+import { differenceInCalendarDays, startOfMonth } from "date-fns";
+import { getAllocationDays, getAllocationCostPaise, getEffectiveDailyCost } from "@/lib/assets";
+import type { SiteAllocationRow } from "@/components/sites/assets-tab";
 import type { Metadata } from "next";
 import type { ExpenseCategory } from "@prisma/client";
 
@@ -99,6 +102,7 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
     updatesTotal,
     consumptionRaw,
     availableMaterialV2,
+    siteAllocations,
   ] = await Promise.all([
     // Full P&L (received + spent + pnl + budgetUsedPercent)
     getSitePnL(id, site.contractValuePaise),
@@ -203,6 +207,22 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
 
     // Available material v2
     getAvailableMaterialV2(id),
+
+    // Asset allocations for Assets tab
+    db.assetAllocation.findMany({
+      where: { siteId: id },
+      include: {
+        asset: {
+          select: {
+            id: true,
+            name: true,
+            defaultDailyCostPaise: true,
+            category: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { startDate: "desc" },
+    }),
   ]);
 
   const { received, spent, pnl: pnlAmount, budgetUsedPercent } = pnl;
@@ -296,6 +316,50 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
     loggedByName: c.loggedBy.name,
     isVoided: c.voidedAt !== null,
   }));
+
+  // Asset allocations for site Assets tab
+  const today = new Date();
+  const monthStart = startOfMonth(today);
+  const currentAllocations: SiteAllocationRow[] = [];
+  const historicalAllocations: SiteAllocationRow[] = [];
+  let totalMtdCostPaise = 0n;
+
+  for (const alloc of siteAllocations) {
+    const effectiveDailyCost = getEffectiveDailyCost(alloc, alloc.asset);
+    const days = getAllocationDays(alloc, today);
+    const runningCostPaise = getAllocationCostPaise(alloc, alloc.asset, today);
+
+    const row: SiteAllocationRow = {
+      id: alloc.id,
+      assetId: alloc.asset.id,
+      assetName: alloc.asset.name,
+      categoryName: alloc.asset.category.name,
+      startDate: alloc.startDate.toISOString().split("T")[0],
+      endDate: alloc.endDate ? alloc.endDate.toISOString().split("T")[0] : null,
+      days,
+      dailyCostPaise: effectiveDailyCost ? String(effectiveDailyCost) : null,
+      runningCostPaise: String(runningCostPaise),
+      notes: alloc.notes,
+      isVoided: alloc.voidedAt !== null,
+    };
+
+    if (alloc.endDate === null && alloc.voidedAt === null) {
+      currentAllocations.push(row);
+    } else {
+      historicalAllocations.push(row);
+    }
+
+    if (!alloc.voidedAt && alloc.includeInSiteCost && effectiveDailyCost) {
+      const allocStart = new Date(alloc.startDate);
+      const allocEnd = alloc.endDate ? new Date(alloc.endDate) : today;
+      const effectiveStart = allocStart < monthStart ? monthStart : allocStart;
+      const effectiveEnd = allocEnd > today ? today : allocEnd;
+      if (effectiveStart <= effectiveEnd) {
+        const mtdDays = differenceInCalendarDays(effectiveEnd, effectiveStart) + 1;
+        totalMtdCostPaise += effectiveDailyCost * BigInt(mtdDays);
+      }
+    }
+  }
 
   void EDIT_WINDOW_MS; // used in serializeUpdate via import
 
@@ -541,6 +605,11 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
         canConsume={canConsumeMaterial}
         assignedTeam={assignedTeam}
         teamCandidates={teamCandidates}
+        siteAssets={{
+          currentAllocations,
+          historicalAllocations,
+          totalMtdCostPaise: String(totalMtdCostPaise),
+        }}
       />
     </div>
   );

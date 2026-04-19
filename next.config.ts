@@ -5,12 +5,12 @@ const nextConfig: NextConfig = {
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Prevent Node.js-only modules from being bundled for the browser/edge runtime
-      config.externals = [
-        ...(Array.isArray(config.externals) ? config.externals : []),
-        "ws",
-        "bufferutil",
-        "utf-8-validate",
-      ];
+      config.resolve.fallback = {
+        ...(config.resolve.fallback || {}),
+        ws: false,
+        bufferutil: false,
+        "utf-8-validate": false,
+      };
     }
     return config;
   },

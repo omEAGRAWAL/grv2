@@ -5,7 +5,7 @@
 //
 // No offline writes in v1 — offline banner handled by OfflineBanner component.
 
-const CACHE_NAME = "constructhub-v1";
+const CACHE_NAME = "constructhub-v2";
 const STATIC_PATTERN = /^\/_next\/static\/|^\/icons\//;
 
 self.addEventListener("install", (event) => {
@@ -65,9 +65,8 @@ self.addEventListener("fetch", (event) => {
           response.ok &&
           request.headers.get("accept")?.includes("text/html")
         ) {
-          caches
-            .open(CACHE_NAME)
-            .then((cache) => cache.put(request, response.clone()));
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }
         return response;
       })

@@ -23,6 +23,7 @@ type NavUser = {
 const OWNER_LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/sites", label: "Sites" },
+  { href: "/assets", label: "Assets" },
   { href: "/updates", label: "Updates" },
   { href: "/attendance", label: "Attendance" },
   { href: "/employees", label: "Employees" },

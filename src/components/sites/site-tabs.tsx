@@ -17,6 +17,8 @@ import type { AvailableItem } from "@/lib/material";
 import type { AvailableMaterialItem } from "@/lib/site-materials";
 import { TeamTab } from "./team-tab";
 import { UpdatesTab } from "./updates-tab";
+import { AssetsTab } from "./assets-tab";
+import type { SiteAllocationRow } from "./assets-tab";
 import type { SerializedUpdate } from "./update-card";
 import { voidConsumption } from "@/app/actions/material-consumption";
 import Decimal from "decimal.js";
@@ -144,6 +146,11 @@ type Props = {
   updatesTotal: number;
   canPostUpdate: boolean;
   currentUserId: string;
+  siteAssets: {
+    currentAllocations: SiteAllocationRow[];
+    historicalAllocations: SiteAllocationRow[];
+    totalMtdCostPaise: string;
+  };
 };
 
 export function SiteTabs({
@@ -172,6 +179,7 @@ export function SiteTabs({
   updatesTotal,
   canPostUpdate,
   currentUserId,
+  siteAssets,
 }: Props) {
   function pageUrl(p: number) {
     return p === 1 ? `/sites/${siteId}` : `/sites/${siteId}?page=${p}`;
@@ -212,6 +220,12 @@ export function SiteTabs({
           )}
         </TabsTrigger>
         <TabsTrigger value="team">Team</TabsTrigger>
+        <TabsTrigger value="assets">
+          Assets
+          {siteAssets.currentAllocations.length > 0 && (
+            <span className="ml-1.5 text-xs opacity-60">({siteAssets.currentAllocations.length})</span>
+          )}
+        </TabsTrigger>
       </TabsList>
 
       {/* ── Transactions ── */}
@@ -733,6 +747,17 @@ export function SiteTabs({
           assigned={assignedTeam}
           candidates={teamCandidates}
           canManage={canManageTeam}
+        />
+      </TabsContent>
+
+      {/* ── Assets ── */}
+      <TabsContent value="assets" className="mt-4">
+        <AssetsTab
+          currentAllocations={siteAssets.currentAllocations}
+          historicalAllocations={siteAssets.historicalAllocations}
+          totalMtdCostPaise={siteAssets.totalMtdCostPaise}
+          canManage={canManageTeam}
+          siteId={siteId}
         />
       </TabsContent>
     </Tabs>
