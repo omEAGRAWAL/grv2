@@ -59,11 +59,16 @@ export async function unassignSupervisor(
   siteId: string,
   userId: string
 ): Promise<ActionResult> {
+  let caller;
   try {
-    await requireRole(["OWNER", "SITE_MANAGER"]);
+    caller = await requireRole(["OWNER", "SITE_MANAGER"]);
   } catch {
     return { success: false, error: "Unauthorized" };
   }
+
+  const companyId = caller.effectiveCompanyId ?? caller.companyId;
+  const site = await db.site.findFirst({ where: { id: siteId, companyId: companyId ?? undefined } });
+  if (!site) return { success: false, error: "Site not found" };
 
   await db.siteAssignment.deleteMany({ where: { siteId, userId } });
 

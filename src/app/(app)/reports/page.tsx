@@ -17,15 +17,19 @@ export default async function ReportsPage({
   const owner = await requireOwner().catch(() => null);
   if (!owner) redirect("/login");
 
+  const companyId = owner.effectiveCompanyId ?? owner.companyId;
+  if (!companyId) redirect("/dashboard");
+
   const { site: defaultSiteId } = await searchParams;
 
   const [sites, employees] = await Promise.all([
     db.site.findMany({
+      where: { companyId },
       select: { id: true, name: true, status: true },
       orderBy: { name: "asc" },
     }),
     db.user.findMany({
-      where: { role: "EMPLOYEE" },
+      where: { role: "EMPLOYEE", companyId },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

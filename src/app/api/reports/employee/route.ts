@@ -16,8 +16,9 @@ const HEADERS = [
 ];
 
 export async function GET(req: NextRequest) {
+  let owner;
   try {
-    await requireOwner();
+    owner = await requireOwner();
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -27,8 +28,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "employeeId required" }, { status: 400 });
   }
 
-  const employee = await db.user.findUnique({
-    where: { id: employeeId },
+  const companyId = owner.effectiveCompanyId!;
+  const employee = await db.user.findFirst({
+    where: { id: employeeId, companyId },
     select: { id: true, name: true },
   });
   if (!employee) {

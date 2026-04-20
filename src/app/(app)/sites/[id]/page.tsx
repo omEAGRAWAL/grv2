@@ -76,13 +76,14 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
   const sp = await searchParams;
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
-  const site = await db.site.findUnique({ where: { id } });
+  const companyId = currentUser.effectiveCompanyId ?? currentUser.companyId ?? undefined;
+
+  const site = await db.site.findFirst({ where: { id, companyId } });
   if (!site) notFound();
 
   const isOwner = currentUser.role === "OWNER";
   const canManageTeam = isOwner || currentUser.role === "SITE_MANAGER";
   const canPostUpdate = canManageTeam || currentUser.role === "SUPERVISOR";
-  const companyId = currentUser.effectiveCompanyId ?? currentUser.companyId ?? undefined;
 
   // Fetch all data in parallel
   const [
@@ -136,7 +137,7 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
     }),
 
     // Material currently at this site
-    getAvailableMaterial(id),
+    getAvailableMaterial(id, companyId!),
 
     db.purchase.count({ where: { destinationSiteId: id } }),
 

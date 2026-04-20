@@ -37,9 +37,11 @@ export default async function AssetDetailPage({ params }: Props) {
   const companyId = currentUser.effectiveCompanyId ?? currentUser.companyId;
   const canManage = ["OWNER", "SITE_MANAGER"].includes(currentUser.role);
 
+  if (!companyId) redirect("/dashboard");
+
   const [asset, categories, activeSites] = await Promise.all([
-    db.asset.findUnique({
-      where: { id },
+    db.asset.findFirst({
+      where: { id, companyId },
       include: {
         category: { select: { id: true, name: true } },
         allocations: {

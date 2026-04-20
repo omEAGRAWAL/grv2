@@ -15,10 +15,13 @@ export default async function IncomeNewPage({
   const owner = await requireOwner().catch(() => null);
   if (!owner) redirect("/login");
 
+  const companyId = owner.effectiveCompanyId ?? owner.companyId;
+  if (!companyId) redirect("/dashboard");
+
   const { site: defaultSiteId } = await searchParams;
 
   const sites = await db.site.findMany({
-    where: { status: "ACTIVE" },
+    where: { status: "ACTIVE", companyId },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });

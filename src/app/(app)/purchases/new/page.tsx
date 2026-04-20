@@ -15,17 +15,20 @@ export default async function PurchaseNewPage({
   if (!currentUser) redirect("/login");
   if (currentUser.role !== "OWNER") redirect("/dashboard");
 
+  const companyId = currentUser.effectiveCompanyId ?? currentUser.companyId;
+  if (!companyId) redirect("/dashboard");
+
   const sp = await searchParams;
 
   const [vendors, sites, users] = await Promise.all([
-    db.vendor.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    db.vendor.findMany({ where: { companyId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.site.findMany({
-      where: { status: "ACTIVE" },
+      where: { status: "ACTIVE", companyId },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
     db.user.findMany({
-      where: { isActive: true },
+      where: { isActive: true, companyId },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),

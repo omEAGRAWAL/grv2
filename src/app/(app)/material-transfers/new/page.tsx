@@ -16,10 +16,13 @@ export default async function MaterialTransferNewPage({
   if (!currentUser) redirect("/login");
   if (currentUser.role !== "OWNER") redirect("/dashboard");
 
+  const companyId = currentUser.effectiveCompanyId ?? currentUser.companyId;
+  if (!companyId) redirect("/dashboard");
+
   const sp = await searchParams;
 
   const sites = await db.site.findMany({
-    where: { status: "ACTIVE" },
+    where: { status: "ACTIVE", companyId },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });
@@ -31,7 +34,7 @@ export default async function MaterialTransferNewPage({
   const resolvedSourceId =
     defaultSourceId === "CENTRAL_STORE" ? null : defaultSourceId;
 
-  const initialMaterial = await getAvailableMaterial(resolvedSourceId);
+  const initialMaterial = await getAvailableMaterial(resolvedSourceId, companyId);
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-4">

@@ -27,11 +27,12 @@ export type AvailableItem = {
  * Items with zero or negative availability are excluded.
  */
 export async function getAvailableMaterial(
-  sourceId: string | null
+  sourceId: string | null,
+  companyId: string
 ): Promise<AvailableItem[]> {
   // ── 1. Purchases going to this source ────────────────────────────────────
   const purchaseRows = await db.purchase.findMany({
-    where: { destinationSiteId: sourceId, voidedAt: null },
+    where: { destinationSiteId: sourceId, companyId, voidedAt: null },
     select: { itemName: true, unit: true, quantity: true, totalPaise: true },
   });
 
@@ -39,7 +40,7 @@ export async function getAvailableMaterial(
   const transfersIn =
     sourceId !== null
       ? await db.materialTransfer.findMany({
-          where: { toSiteId: sourceId, voidedAt: null },
+          where: { toSiteId: sourceId, companyId, voidedAt: null },
           select: {
             itemName: true,
             unit: true,
@@ -51,7 +52,7 @@ export async function getAvailableMaterial(
 
   // ── 3. Material transfers OUT from this source ───────────────────────────
   const transfersOut = await db.materialTransfer.findMany({
-    where: { fromSiteId: sourceId, voidedAt: null },
+    where: { fromSiteId: sourceId, companyId, voidedAt: null },
     select: {
       itemName: true,
       unit: true,

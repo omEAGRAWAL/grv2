@@ -58,8 +58,8 @@ export async function createSiteIncome(
     return { success: false, error: "Invalid amount" };
   }
 
-  const site = await db.site.findUnique({
-    where: { id: parsed.data.siteId },
+  const site = await db.site.findFirst({
+    where: { id: parsed.data.siteId, companyId: owner.effectiveCompanyId! },
     select: { id: true },
   });
   if (!site) return { success: false, error: "Site not found" };
@@ -94,10 +94,13 @@ export async function voidSiteIncome(id: string): Promise<ActionResult> {
 
   const income = await db.siteIncome.findUnique({
     where: { id },
-    select: { id: true, siteId: true, voidedAt: true },
+    select: { id: true, companyId: true, siteId: true, voidedAt: true },
   });
 
   if (!income) return { success: false, error: "Income record not found" };
+  if (income.companyId !== currentUser.effectiveCompanyId!) {
+    return { success: false, error: "Income record not found" };
+  }
   if (income.voidedAt) return { success: false, error: "Income already voided" };
 
   await db.$transaction(async (tx) => {

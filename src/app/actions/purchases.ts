@@ -127,17 +127,19 @@ export async function createPurchase(
     return { success: false, error: "Purchase total must be greater than ₹0" };
   }
 
-  // Verify vendor exists
-  const vendor = await db.vendor.findUnique({
-    where: { id: parsed.data.vendorId },
+  const companyId = currentUser.effectiveCompanyId!;
+
+  // Verify vendor belongs to this company
+  const vendor = await db.vendor.findFirst({
+    where: { id: parsed.data.vendorId, companyId },
     select: { id: true, name: true },
   });
   if (!vendor) return { success: false, error: "Vendor not found" };
 
   // If wallet-paid, check balance before opening transaction
   if (paidByUserId) {
-    const payer = await db.user.findUnique({
-      where: { id: paidByUserId, isActive: true },
+    const payer = await db.user.findFirst({
+      where: { id: paidByUserId, isActive: true, companyId },
       select: { id: true },
     });
     if (!payer) return { success: false, error: "Payer not found or inactive" };
@@ -152,8 +154,6 @@ export async function createPurchase(
   }
 
   let destinationSiteIdForRedirect: string | null = destinationSiteId;
-
-  const companyId = currentUser.effectiveCompanyId!;
 
   await db.$transaction(async (tx) => {
     const purchase = await tx.purchase.create({
@@ -231,6 +231,9 @@ export async function voidPurchase(purchaseId: string): Promise<VoidResult> {
   });
 
   if (!purchase) return { success: false, error: "Purchase not found" };
+  if (purchase.companyId !== currentUser.effectiveCompanyId!) {
+    return { success: false, error: "Purchase not found" };
+  }
   if (purchase.voidedAt)
     return { success: false, error: "Purchase already voided" };
 

@@ -14,18 +14,17 @@ import { Badge } from "@/components/ui/badge";
 import { CreateSiteDialog } from "@/components/sites/create-site-dialog";
 import { OnboardingChecklist } from "@/components/onboarding/onboarding-checklist";
 
-async function getDashboardStats(companyId?: string) {
+async function getDashboardStats(companyId: string) {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const cFilter = companyId ? { companyId } : {};
 
   const [activeSiteCount, cashWithTeam, incomeAgg, walletOutAgg, ownerDirectPurchaseAgg] =
     await Promise.all([
-      db.site.count({ where: { status: "ACTIVE", ...cFilter } }),
+      db.site.count({ where: { status: "ACTIVE", companyId } }),
       getCashWithTeam(companyId),
       db.siteIncome.aggregate({
         _sum: { amountPaise: true },
-        where: { createdAt: { gte: startOfMonth }, voidedAt: null, ...cFilter },
+        where: { createdAt: { gte: startOfMonth }, voidedAt: null, companyId },
       }),
       db.walletTransaction.aggregate({
         _sum: { amountPaise: true },
@@ -34,7 +33,7 @@ async function getDashboardStats(companyId?: string) {
           type: { in: ["EXPENSE", "VENDOR_PAYMENT"] },
           createdAt: { gte: startOfMonth },
           voidedAt: null,
-          ...cFilter,
+          companyId,
         },
       }),
       db.purchase.aggregate({
@@ -43,7 +42,7 @@ async function getDashboardStats(companyId?: string) {
           paidByUserId: null,
           createdAt: { gte: startOfMonth },
           voidedAt: null,
-          ...cFilter,
+          companyId,
         },
       }),
     ]);
@@ -86,7 +85,7 @@ export default async function DashboardPage() {
   const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
   const [stats, allSites, myTodayAttendance, todayAttendanceSummary] = await Promise.all([
-    getDashboardStats(companyId),
+    companyId ? getDashboardStats(companyId) : Promise.resolve({ activeSiteCount: 0, cashWithTeam: 0n, monthlyIn: 0n, monthlyOut: 0n }),
     getSites({ companyId, userId: user.id, role: user.role }),
     companyId
       ? db.attendance.findUnique({
@@ -109,12 +108,11 @@ export default async function DashboardPage() {
   let showOnboarding = false;
   let onboardingState = { hasSite: false, hasEmployee: false, hasTopUp: false };
 
-  if (user.role === "OWNER" && !user.onboardingDismissedAt) {
-    const cFilter = companyId ? { companyId } : {};
+  if (user.role === "OWNER" && !user.onboardingDismissedAt && companyId) {
     const [siteCount, employeeCount, topUpCount] = await Promise.all([
-      db.site.count({ where: { ...cFilter } }),
-      db.user.count({ where: { role: "EMPLOYEE", ...cFilter } }),
-      db.walletTransaction.count({ where: { type: "TOPUP", ...cFilter } }),
+      db.site.count({ where: { companyId } }),
+      db.user.count({ where: { role: "EMPLOYEE", companyId } }),
+      db.walletTransaction.count({ where: { type: "TOPUP", companyId } }),
     ]);
     showOnboarding = true;
     onboardingState = {

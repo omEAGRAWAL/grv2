@@ -99,6 +99,10 @@ export async function updateSite(
   const siteId = formData.get("siteId") as string;
   if (!siteId) return { success: false, error: "Site ID missing" };
 
+  const companyId = owner.effectiveCompanyId!;
+  const existingSite = await db.site.findFirst({ where: { id: siteId, companyId } });
+  if (!existingSite) return { success: false, error: "Site not found" };
+
   const raw = {
     name: formData.get("name"),
     location: formData.get("location"),

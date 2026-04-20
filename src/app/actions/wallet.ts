@@ -100,6 +100,9 @@ export async function voidWalletTransaction(
   });
 
   if (!txn) return { success: false, error: "Transaction not found" };
+  if (txn.companyId !== currentUser.effectiveCompanyId!) {
+    return { success: false, error: "Transaction not found" };
+  }
   if (txn.voidedAt) return { success: false, error: "Transaction already voided" };
 
   const oppositeDirection = txn.direction === "DEBIT" ? "CREDIT" : "DEBIT";
@@ -117,6 +120,7 @@ export async function voidWalletTransaction(
 
     const counterpart = await db.walletTransaction.findFirst({
       where: {
+        companyId: txn.companyId,
         type: counterpartType,
         actorUserId: txn.counterpartyUserId,
         counterpartyUserId: txn.actorUserId,

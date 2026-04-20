@@ -70,7 +70,7 @@ export async function createMaterialTransfer(
   }
 
   // Get available material at source to validate qty and compute cost
-  const available = await getAvailableMaterial(fromSiteId);
+  const available = await getAvailableMaterial(fromSiteId, currentUser.effectiveCompanyId!);
   const sourceItem = available.find(
     (item) =>
       item.itemName === parsed.data.itemName &&
@@ -133,12 +133,13 @@ export async function createMaterialTransfer(
 export async function getAvailableMaterialAction(
   sourceId: string | null
 ): Promise<AvailableItem[]> {
+  let owner;
   try {
-    await requireOwner();
+    owner = await requireOwner();
   } catch {
     return [];
   }
-  return getAvailableMaterial(sourceId);
+  return getAvailableMaterial(sourceId, owner.effectiveCompanyId!);
 }
 
 /**
@@ -158,6 +159,7 @@ export async function voidMaterialTransfer(
     where: { id },
     select: {
       id: true,
+      companyId: true,
       fromSiteId: true,
       toSiteId: true,
       voidedAt: true,
@@ -165,6 +167,9 @@ export async function voidMaterialTransfer(
   });
 
   if (!transfer) return { success: false, error: "Transfer not found" };
+  if (transfer.companyId !== currentUser.effectiveCompanyId!) {
+    return { success: false, error: "Transfer not found" };
+  }
   if (transfer.voidedAt) return { success: false, error: "Transfer already voided" };
 
   await db.$transaction(async (tx) => {

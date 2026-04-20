@@ -20,8 +20,9 @@ const HEADERS = [
 ];
 
 export async function GET(req: NextRequest) {
+  let owner;
   try {
-    await requireOwner();
+    owner = await requireOwner();
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -31,8 +32,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "siteId required" }, { status: 400 });
   }
 
-  const site = await db.site.findUnique({
-    where: { id: siteId },
+  const companyId = owner.effectiveCompanyId!;
+  const site = await db.site.findFirst({
+    where: { id: siteId, companyId },
     select: { id: true, name: true },
   });
   if (!site) {

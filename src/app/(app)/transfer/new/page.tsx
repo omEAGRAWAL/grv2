@@ -13,8 +13,11 @@ export default async function TransferNewPage() {
   const user = await getCurrentUser().catch(() => null);
   if (!user) redirect("/login");
 
+  const companyId = user.effectiveCompanyId ?? user.companyId;
+  if (!companyId) redirect("/dashboard");
+
   const activeUsers = await db.user.findMany({
-    where: { isActive: true },
+    where: { isActive: true, companyId },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });

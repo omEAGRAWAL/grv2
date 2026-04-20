@@ -67,8 +67,10 @@ export async function createExpense(
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  // Verify site exists
-  const site = await db.site.findUnique({ where: { id: parsed.data.siteId } });
+  const companyId = currentUser.effectiveCompanyId!;
+
+  // Verify site belongs to this company
+  const site = await db.site.findFirst({ where: { id: parsed.data.siteId, companyId } });
   if (!site) return { success: false, error: "Site not found" };
 
   // Determine actor — only OWNER/SITE_MANAGER can log on behalf of others
@@ -81,6 +83,9 @@ export async function createExpense(
         error: "Only owners can log expenses on behalf of others",
       };
     }
+    // Verify the on-behalf-of user belongs to the same company
+    const delegatee = await db.user.findFirst({ where: { id: parsed.data.onBehalfOfUserId, companyId } });
+    if (!delegatee) return { success: false, error: "Employee not found" };
     actorUserId = parsed.data.onBehalfOfUserId;
   }
 

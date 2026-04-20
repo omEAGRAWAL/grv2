@@ -11,18 +11,18 @@ export const metadata: Metadata = { title: "Log Expense — ConstructHub" };
 
 type Props = { searchParams: Promise<{ site?: string }> };
 
-async function getDefaultSiteId(userId: string): Promise<string | undefined> {
-  // Try last-used site from this user's most recent non-voided txn
+async function getDefaultSiteId(userId: string, companyId: string): Promise<string | undefined> {
+  // Try last-used site from this user's most recent non-voided txn (scoped to company)
   const last = await db.walletTransaction.findFirst({
-    where: { actorUserId: userId, siteId: { not: null }, voidedAt: null },
+    where: { actorUserId: userId, companyId, siteId: { not: null }, voidedAt: null },
     orderBy: { createdAt: "desc" },
     select: { siteId: true },
   });
   if (last?.siteId) return last.siteId;
 
-  // Fall back to first active site
+  // Fall back to first active site in this company
   const first = await db.site.findFirst({
-    where: { status: "ACTIVE" },
+    where: { status: "ACTIVE", companyId },
     orderBy: { createdAt: "asc" },
     select: { id: true },
   });
@@ -33,22 +33,25 @@ export default async function ExpenseNewPage({ searchParams }: Props) {
   const user = await getCurrentUser().catch(() => null);
   if (!user) redirect("/login");
 
+  const companyId = user.effectiveCompanyId ?? user.companyId;
+  if (!companyId) redirect("/dashboard");
+
   const sp = await searchParams;
 
   const [sites, allActiveUsers, defaultSiteId] = await Promise.all([
     db.site.findMany({
-      where: { status: "ACTIVE" },
+      where: { status: "ACTIVE", companyId },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
     user.role === "OWNER"
       ? db.user.findMany({
-          where: { isActive: true },
+          where: { isActive: true, companyId },
           orderBy: { name: "asc" },
           select: { id: true, name: true },
         })
       : Promise.resolve([]),
-    getDefaultSiteId(user.id),
+    getDefaultSiteId(user.id, companyId),
   ]);
 
   const resolvedDefaultSiteId = sp.site ?? defaultSiteId;
