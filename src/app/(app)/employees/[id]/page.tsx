@@ -54,9 +54,11 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
     );
   }
 
+  const companyId = currentUser.effectiveCompanyId ?? currentUser.companyId;
+
   const { id } = await params;
   const sp = await searchParams;
-  const employee = await db.user.findUnique({ where: { id, role: "EMPLOYEE" } });
+  const employee = await db.user.findFirst({ where: { id, companyId: companyId ?? undefined, role: "EMPLOYEE" } });
   if (!employee) notFound();
 
   const [walletBalance, monthSummary] = await Promise.all([

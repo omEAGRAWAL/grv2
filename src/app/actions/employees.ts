@@ -107,8 +107,9 @@ export async function resetPassword(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
+  let caller;
   try {
-    await requireRole(["OWNER", "SITE_MANAGER"]);
+    caller = await requireRole(["OWNER", "SITE_MANAGER"]);
   } catch {
     return { success: false, error: "Unauthorized" };
   }
@@ -122,6 +123,11 @@ export async function resetPassword(
   }
 
   const { userId, newPassword } = result.data;
+
+  const companyId = caller.effectiveCompanyId ?? caller.companyId;
+  const target = await db.user.findFirst({ where: { id: userId, companyId: companyId ?? undefined } });
+  if (!target) return { success: false, error: "Employee not found" };
+
   const passwordHash = await hashPassword(newPassword);
 
   await db.user.update({
@@ -161,6 +167,10 @@ export async function toggleEmployeeActive(
   if (userId === caller.id) {
     return { success: false, error: "You cannot deactivate your own account" };
   }
+
+  const companyId = caller.effectiveCompanyId ?? caller.companyId;
+  const target = await db.user.findFirst({ where: { id: userId, companyId: companyId ?? undefined } });
+  if (!target) return { success: false, error: "Employee not found" };
 
   await db.user.update({
     where: { id: userId },

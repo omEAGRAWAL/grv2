@@ -52,10 +52,12 @@ export async function createTransfer(
     return { success: false, error: "Cannot transfer to yourself" };
   }
 
-  // Verify both users exist and are active
+  const companyId = currentUser.effectiveCompanyId!;
+
+  // Verify both users exist, are active, and belong to the same company
   const [fromUser, toUser] = await Promise.all([
-    db.user.findUnique({ where: { id: fromUserId, isActive: true } }),
-    db.user.findUnique({ where: { id: toUserId, isActive: true } }),
+    db.user.findFirst({ where: { id: fromUserId, isActive: true, companyId } }),
+    db.user.findFirst({ where: { id: toUserId, isActive: true, companyId } }),
   ]);
 
   if (!fromUser) return { success: false, error: "Sender not found or inactive" };
@@ -66,8 +68,6 @@ export async function createTransfer(
   if (balance < amountPaise) {
     return { success: false, error: "Insufficient wallet balance" };
   }
-
-  const companyId = currentUser.effectiveCompanyId!;
 
   await db.$transaction(async (tx) => {
     await tx.walletTransaction.create({
