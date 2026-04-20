@@ -85,8 +85,9 @@ export async function updateVendor(
   _prevState: ActionResult | null,
   formData: FormData
 ): Promise<ActionResult> {
+  let owner;
   try {
-    await requireOwner();
+    owner = await requireOwner();
   } catch {
     return { success: false, error: "Only owners can update vendors" };
   }
@@ -106,6 +107,10 @@ export async function updateVendor(
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message };
   }
+
+  const companyId = owner.effectiveCompanyId!;
+  const existing = await db.vendor.findFirst({ where: { id: vendorId, companyId } });
+  if (!existing) return { success: false, error: "Vendor not found" };
 
   const vendor = await db.vendor.update({
     where: { id: vendorId },

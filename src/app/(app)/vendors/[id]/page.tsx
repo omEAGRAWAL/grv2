@@ -25,21 +25,24 @@ export default async function VendorDetailPage({ params, searchParams }: Props) 
   if (!currentUser) redirect("/login");
   if (currentUser.role !== "OWNER") redirect("/dashboard");
 
+  const companyId = currentUser.effectiveCompanyId ?? currentUser.companyId;
+  if (!companyId) redirect("/dashboard");
+
   const { id } = await params;
   const sp = await searchParams;
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
-  const vendor = await db.vendor.findUnique({ where: { id } });
+  const vendor = await db.vendor.findFirst({ where: { id, companyId } });
   if (!vendor) notFound();
 
   const [totalAgg, purchaseCount, purchases] = await Promise.all([
     db.purchase.aggregate({
       _sum: { totalPaise: true },
-      where: { vendorId: id, voidedAt: null },
+      where: { vendorId: id, companyId, voidedAt: null },
     }),
-    db.purchase.count({ where: { vendorId: id, voidedAt: null } }),
+    db.purchase.count({ where: { vendorId: id, companyId, voidedAt: null } }),
     db.purchase.findMany({
-      where: { vendorId: id, voidedAt: null },
+      where: { vendorId: id, companyId, voidedAt: null },
       include: {
         destinationSite: { select: { id: true, name: true } },
         paidBy: { select: { name: true } },

@@ -13,12 +13,15 @@ export default async function VendorsPage() {
   if (!currentUser) redirect("/login");
   if (currentUser.role !== "OWNER") redirect("/dashboard");
 
+  const companyId = currentUser.effectiveCompanyId ?? currentUser.companyId;
+  if (!companyId) redirect("/dashboard");
+
   const [vendors, purchaseAggs] = await Promise.all([
-    db.vendor.findMany({ orderBy: { name: "asc" } }),
+    db.vendor.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     db.purchase.groupBy({
       by: ["vendorId"],
       _sum: { totalPaise: true },
-      where: { voidedAt: null },
+      where: { companyId, voidedAt: null },
     }),
   ]);
 
