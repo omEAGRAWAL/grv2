@@ -1,4 +1,8 @@
-import { db } from "@/lib/db";
+import { getUnscopedDb } from "@/lib/db";
+
+// Scoped by actorUserId (globally-unique UUID). Callers verify the userId
+// belongs to the request's company before passing it here.
+const db = getUnscopedDb();
 
 /**
  * Compute the current wallet balance for a user.

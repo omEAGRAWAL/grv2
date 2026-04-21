@@ -34,7 +34,7 @@ export default async function ConsumePage({ params }: Props) {
 
   if (!canConsume && currentUser.role === "SUPERVISOR") {
     const assignment = await db.siteAssignment.findFirst({
-      where: { siteId: id, userId: currentUser.id },
+      where: { siteId: id, userId: currentUser.id, companyId },
     });
     canConsume = !!assignment;
   }

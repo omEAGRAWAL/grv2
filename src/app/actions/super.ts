@@ -2,8 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
+import { getUnscopedDb } from "@/lib/db";
 import { getCurrentUser, getSession } from "@/lib/auth";
+
+// SUPERADMIN: cross-tenant query intended — all operations in this file are superadmin-only
+const db = getUnscopedDb();
 
 type ActionResult = { success: true } | { success: false; error: string };
 

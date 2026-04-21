@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import { db } from "@/lib/db";
+// getAvailableMaterial passes companyId explicitly in all queries — safe to use guarded db
 
 export type AvailableItem = {
   itemName: string;

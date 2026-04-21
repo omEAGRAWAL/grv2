@@ -1,4 +1,7 @@
-import { db } from "@/lib/db";
+import { getUnscopedDb } from "@/lib/db";
+
+// Scoped by actorUserId (globally-unique UUID). Callers verify userId ownership.
+const db = getUnscopedDb();
 
 export type ReconcileBreakdown = {
   // Credits

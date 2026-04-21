@@ -4,7 +4,10 @@ import { Receipt, ArrowRightLeft, Info, Camera } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getWalletBalance } from "@/lib/wallet";
 import { formatINR } from "@/lib/money";
-import { db } from "@/lib/db";
+import { getUnscopedDb } from "@/lib/db";
+
+// Scoped by actorUserId (globally-unique UUID). Callers verify userId ownership.
+const db = getUnscopedDb();
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

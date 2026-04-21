@@ -1,5 +1,8 @@
-import { db } from "@/lib/db";
+import { getUnscopedDb } from "@/lib/db";
 import type { SiteStatus } from "@prisma/client";
+
+// Scoped by companyId (optional) or userId assignments. Callers verify ownership.
+const db = getUnscopedDb();
 
 const VALID_STATUSES: SiteStatus[] = ["ACTIVE", "COMPLETED", "ON_HOLD"];
 

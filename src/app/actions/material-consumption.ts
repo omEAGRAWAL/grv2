@@ -17,8 +17,9 @@ async function canConsumeAtSite(
 ): Promise<boolean> {
   if (["OWNER", "SITE_MANAGER"].includes(caller.role)) return true;
   if (caller.role === "SUPERVISOR") {
+    const companyId = caller.effectiveCompanyId ?? caller.companyId;
     const assignment = await db.siteAssignment.findFirst({
-      where: { userId: caller.id, siteId },
+      where: { userId: caller.id, siteId, ...(companyId ? { companyId } : {}) },
     });
     return assignment !== null;
   }

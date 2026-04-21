@@ -25,7 +25,7 @@ export default async function CheckInPage() {
       select: { status: true, method: true, photoUrl: true, createdAt: true },
     }),
     db.siteAssignment.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, companyId },
       select: { site: { select: { id: true, name: true } } },
     }),
   ]);

@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
-import { db } from "@/lib/db";
+import { getUnscopedDb } from "@/lib/db";
 import { verifyPassword, getSession } from "@/lib/auth";
 import type { SessionData } from "@/lib/session-config";
 import {
@@ -45,6 +45,8 @@ export async function loginAction(
   // Find user by username globally. With multi-tenancy, same username may exist
   // across companies — a future login screen should add a company-code field
   // for disambiguation. For now, we use findFirst (SUPERADMIN has null companyId).
+  // SUPERADMIN: cross-tenant query intended — login lookup must find any user by username
+  const db = getUnscopedDb();
   const user = await db.user.findFirst({
     where: { username: normalizedUsername },
   });

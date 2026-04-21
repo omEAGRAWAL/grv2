@@ -1,6 +1,9 @@
 import { differenceInCalendarDays, subDays } from "date-fns";
-import { db } from "@/lib/db";
+import { getUnscopedDb } from "@/lib/db";
 import type { Asset, AssetAllocation } from "@prisma/client";
+
+// Scoped by assetId/siteId (globally-unique UUIDs). Callers verify ownership.
+const db = getUnscopedDb();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

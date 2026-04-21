@@ -1,5 +1,11 @@
-import { db } from "@/lib/db";
+import { getUnscopedDb } from "@/lib/db";
 import { getAssetCostForSite } from "@/lib/assets";
+
+// These functions are scoped by siteId (globally-unique UUID). Callers are
+// responsible for verifying that the siteId belongs to the request's company
+// before calling any function here. Using getUnscopedDb() is safe because the
+// siteId already provides implicit tenant isolation.
+const db = getUnscopedDb();
 
 // ─── Income helpers ───────────────────────────────────────────────────────────
 

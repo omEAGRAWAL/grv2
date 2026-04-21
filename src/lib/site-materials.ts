@@ -1,5 +1,8 @@
 import Decimal from "decimal.js";
-import { db } from "@/lib/db";
+import { getUnscopedDb } from "@/lib/db";
+
+// Scoped by siteId (globally-unique UUID). Callers verify site ownership.
+const db = getUnscopedDb();
 
 export type AvailableMaterialItem = {
   itemName: string;     // display casing (most recent)

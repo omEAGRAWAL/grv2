@@ -241,7 +241,7 @@ export async function createAssetAllocation(
   // SUPERVISOR: can only allocate to assigned sites (or "return to yard")
   if (caller.role === "SUPERVISOR" && parsed.data.siteId) {
     const assignment = await db.siteAssignment.findFirst({
-      where: { userId: caller.id, siteId: parsed.data.siteId },
+      where: { userId: caller.id, siteId: parsed.data.siteId, companyId },
     });
     if (!assignment) {
       return { success: false, error: "You are not assigned to that site" };

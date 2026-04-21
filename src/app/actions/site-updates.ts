@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
+import { db, getUnscopedDb } from "@/lib/db";
 import { requireRole, getCurrentUser } from "@/lib/auth";
 import { getUploadSignature } from "@/lib/cloudinary";
 
@@ -30,7 +30,7 @@ async function canPostToSite(
   if (["OWNER", "SITE_MANAGER"].includes(caller.role)) return true;
   if (caller.role === "SUPERVISOR") {
     const assignment = await db.siteAssignment.findFirst({
-      where: { userId: caller.id, siteId },
+      where: { userId: caller.id, siteId, companyId },
     });
     return assignment !== null;
   }
@@ -228,15 +228,17 @@ export async function voidSiteUpdate(updateId: string): Promise<UpdateActionResu
 // ─── Fetch (server action for "load more") ────────────────────────────────────
 
 export async function fetchSiteUpdates(siteId: string, page: number) {
+  // Scoped by siteId (globally-unique UUID). Site ownership verified by page before calling.
+  const unscopedDb = getUnscopedDb();
   const PAGE_SIZE = 20;
-  const updates = await db.siteUpdate.findMany({
+  const updates = await unscopedDb.siteUpdate.findMany({
     where: { siteId, voidedAt: null },
     include: { submittedBy: { select: { id: true, name: true, title: true } } },
     orderBy: { createdAt: "desc" },
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
   });
-  const total = await db.siteUpdate.count({ where: { siteId, voidedAt: null } });
+  const total = await unscopedDb.siteUpdate.count({ where: { siteId, voidedAt: null } });
   return { updates, total, page, pageSize: PAGE_SIZE };
 }
 

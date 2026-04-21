@@ -1,7 +1,10 @@
 export const dynamic = "force-dynamic";
 
-import { db } from "@/lib/db";
+// SUPERADMIN: cross-tenant query intended — this page is only accessible to SUPERADMIN
+import { getUnscopedDb } from "@/lib/db";
 import { formatINR } from "@/lib/money";
+
+const db = getUnscopedDb();
 import { SuspendButton } from "./suspend-button";
 import { ImpersonateButton } from "./impersonate-button";
 

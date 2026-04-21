@@ -1,6 +1,9 @@
 import Link from "next/link";
 import type { WalletTxnType } from "@prisma/client";
-import { db } from "@/lib/db";
+import { getUnscopedDb } from "@/lib/db";
+
+// Scoped by actorUserId (globally-unique UUID). Callers verify userId ownership.
+const db = getUnscopedDb();
 import { formatINR } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";

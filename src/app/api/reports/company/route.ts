@@ -21,14 +21,19 @@ const HEADERS = [
 ];
 
 export async function GET() {
+  let owner: Awaited<ReturnType<typeof requireOwner>>;
   try {
-    await requireOwner();
+    owner = await requireOwner();
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const companyId = owner.effectiveCompanyId ?? owner.companyId;
+  if (!companyId) return NextResponse.json({ error: "No company context" }, { status: 403 });
+
   const [walletTxns, purchases, transfersIn, incomes] = await Promise.all([
     db.walletTransaction.findMany({
+      where: { companyId },
       include: {
         actor: { select: { name: true } },
         site: { select: { name: true } },
@@ -39,6 +44,7 @@ export async function GET() {
     }),
 
     db.purchase.findMany({
+      where: { companyId },
       include: {
         vendor: { select: { name: true } },
         destinationSite: { select: { name: true } },
@@ -49,6 +55,7 @@ export async function GET() {
     }),
 
     db.materialTransfer.findMany({
+      where: { companyId },
       include: {
         fromSite: { select: { name: true } },
         toSite: { select: { name: true } },
@@ -58,6 +65,7 @@ export async function GET() {
     }),
 
     db.siteIncome.findMany({
+      where: { companyId },
       include: {
         site: { select: { name: true } },
         loggedBy: { select: { name: true } },

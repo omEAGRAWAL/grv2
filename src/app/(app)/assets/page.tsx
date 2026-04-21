@@ -51,7 +51,7 @@ export default async function AssetsPage() {
     }),
     currentUser.role === "SUPERVISOR"
       ? db.siteAssignment.findMany({
-          where: { userId: currentUser.id },
+          where: { userId: currentUser.id, companyId },
           select: { siteId: true },
         }).then((r) => r.map((a) => a.siteId))
       : Promise.resolve(null),
