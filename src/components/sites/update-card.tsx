@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { voidSiteUpdate } from "@/app/actions/site-updates";
 import { PostUpdateDialog } from "./post-update-dialog";
 import type { PhotoItem } from "@/app/actions/site-updates";
+import type { SerializedUpdate } from "@/lib/serialize-update";
 
 export type { SerializedUpdate } from "@/lib/serialize-update";
 

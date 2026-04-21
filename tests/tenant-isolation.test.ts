@@ -91,7 +91,7 @@ describe("vendor isolation", () => {
     vi.mocked(mockDb.vendor.findFirst).mockResolvedValue(null);
 
     const form = makeForm({ vendorId: "vendor-b", name: "Hacked Name" });
-    const result = await updateVendor(null, form);
+    const result = await updateVendor(null, form) as { success: false; error: string };
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/not found/i);
@@ -118,7 +118,7 @@ describe("employee isolation", () => {
     vi.mocked(mockDb.user.findFirst).mockResolvedValue(null);
 
     const form = makeForm({ userId: "emp-b", newPassword: "newpass123" });
-    const result = await resetPassword(null, form);
+    const result = await resetPassword(null, form) as { success: false; error: string };
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/not found/i);
@@ -230,7 +230,7 @@ describe("site income isolation", () => {
       type: "ADVANCE",
       receivedDate: "2024-01-15",
     });
-    const result = await createSiteIncome(null, form);
+    const result = await createSiteIncome(null, form) as { success: false; error: string };
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/site/i);
@@ -300,8 +300,7 @@ describe("site assignment isolation", () => {
   it("rejects unassigning supervisor from another company's site", async () => {
     vi.mocked(mockDb.site.findFirst).mockResolvedValue(null);
 
-    const form = makeForm({ siteId: "site-b", userId: "sup-b" });
-    const result = await unassignSupervisor(null, form);
+    const result = await unassignSupervisor("site-b", "sup-b");
 
     expect(result.success).toBe(false);
     expect(mockDb.siteAssignment.deleteMany).not.toHaveBeenCalled();
@@ -322,7 +321,7 @@ describe("asset isolation", () => {
       ownershipType: "OWNED",
       status: "AVAILABLE",
     });
-    const result = await updateAsset(null, form);
+    const result = await updateAsset(null, form) as { success: false; error: string };
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/not found/i);
@@ -372,7 +371,7 @@ describe("asset category isolation", () => {
     vi.mocked(mockDb.assetCategory.findUnique).mockResolvedValue(foreignCat as never);
 
     const form = makeForm({ id: "cat-b", name: "Hacked Category" });
-    const result = await updateCategory(null, form);
+    const result = await updateCategory(null, form) as { success: false; error: string };
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/not found/i);
@@ -402,7 +401,7 @@ describe("site update isolation", () => {
     const foreignUpdate = { id: "upd-b", companyId: COMPANY_B, voidedAt: null, siteId: "site-b" };
     vi.mocked(mockDb.siteUpdate.findUnique).mockResolvedValue(foreignUpdate as never);
 
-    const result = await voidSiteUpdate("upd-b");
+    const result = await voidSiteUpdate("upd-b") as { success: false; error: string };
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/company/i);
@@ -422,7 +421,7 @@ describe("material consumption isolation", () => {
     };
     vi.mocked(mockDb.materialConsumption.findUnique).mockResolvedValue(foreignConsumption as never);
 
-    const result = await voidConsumption("con-b");
+    const result = await voidConsumption("con-b") as { success: false; error: string };
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/company/i);
