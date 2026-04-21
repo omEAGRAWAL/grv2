@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getWalletBalance } from "@/lib/wallet";
@@ -10,11 +11,19 @@ import { EmployeeActionsMenu } from "@/components/employees/employee-actions-men
 import { TopUpButton } from "@/components/employees/topup-button";
 import { WalletHistorySection } from "@/components/wallet/wallet-history-section";
 import { ReconcileModal } from "@/components/wallet/reconcile-modal";
+import { PayrollTabSection } from "@/components/payroll/payroll-tab-section";
+import { cn } from "@/lib/utils";
 import type { Metadata } from "next";
 
 type Props = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ page?: string; type?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    type?: string;
+    from?: string;
+    to?: string;
+    tab?: string;
+  }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -45,27 +54,39 @@ async function getMonthSummary(userId: string) {
 export default async function EmployeeDetailPage({ params, searchParams }: Props) {
   const currentUser = await getCurrentUser().catch(() => null);
   if (!currentUser) redirect("/login");
-  if (currentUser.role !== "OWNER") {
+
+  const isOwner = currentUser.role === "OWNER";
+  const isSiteManager = currentUser.role === "SITE_MANAGER";
+  const isOwnerOrManager = isOwner || isSiteManager;
+
+  // Employees can view their own payroll tab; others need OWNER/SITE_MANAGER
+  const { id } = await params;
+  const sp = await searchParams;
+  const tab = sp.tab ?? "wallet";
+
+  const companyId = currentUser.effectiveCompanyId ?? currentUser.companyId;
+
+  if (!isOwnerOrManager && currentUser.id !== id) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-2 p-6">
         <p className="font-semibold">Access Denied</p>
-        <p className="text-sm text-muted-foreground">Only owners can view employee details.</p>
+        <p className="text-sm text-muted-foreground">You don&apos;t have permission to view this page.</p>
       </div>
     );
   }
 
-  const companyId = currentUser.effectiveCompanyId ?? currentUser.companyId;
-
-  const { id } = await params;
-  const sp = await searchParams;
-  const employee = await db.user.findFirst({ where: { id, companyId: companyId ?? undefined, role: "EMPLOYEE" } });
+  const employee = await db.user.findFirst({
+    where: { id, companyId: companyId ?? undefined },
+  });
   if (!employee) notFound();
 
   const [walletBalance, monthSummary] = await Promise.all([
     getWalletBalance(employee.id),
     getMonthSummary(employee.id),
   ]);
+
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
+  const basePath = `/employees/${employee.id}`;
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-2xl mx-auto">
@@ -82,19 +103,21 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
             @{employee.username}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <TopUpButton
-            employeeId={employee.id}
-            employeeName={employee.name}
-            walletBalancePaise={walletBalance.toString()}
-          />
-          <EmployeeActionsMenu
-            userId={employee.id}
-            userName={employee.name}
-            isActive={employee.isActive}
-            walletBalancePaise={walletBalance.toString()}
-          />
-        </div>
+        {isOwnerOrManager && (
+          <div className="flex items-center gap-2">
+            <TopUpButton
+              employeeId={employee.id}
+              employeeName={employee.name}
+              walletBalancePaise={walletBalance.toString()}
+            />
+            <EmployeeActionsMenu
+              userId={employee.id}
+              userName={employee.name}
+              isActive={employee.isActive}
+              walletBalancePaise={walletBalance.toString()}
+            />
+          </div>
+        )}
       </div>
 
       {/* Stat cards */}
@@ -121,7 +144,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
             <CardTitle className="text-xs text-muted-foreground font-medium uppercase tracking-wide flex items-center gap-1">
               Wallet
               <span
-                title="This balance is calculated from transaction history. It is never stored separately."
+                title="Calculated from transaction history, never stored separately."
                 className="cursor-help text-muted-foreground/60 hover:text-muted-foreground transition-colors"
                 aria-label="About wallet balance"
               >
@@ -161,21 +184,58 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
         </Card>
       </div>
 
-      {/* Reconcile button */}
-      <div className="flex justify-end">
-        <ReconcileModal userId={employee.id} basePath={`/employees/${employee.id}`} />
+      {/* Tab navigation */}
+      <div className="flex border-b gap-1">
+        {[
+          { key: "wallet", label: "Wallet" },
+          { key: "payroll", label: "Payroll" },
+        ].map(({ key, label }) => (
+          <Link
+            key={key}
+            href={`${basePath}?tab=${key}`}
+            className={cn(
+              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+              tab === key
+                ? "border-foreground text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {label}
+          </Link>
+        ))}
       </div>
 
-      {/* Wallet history */}
-      <WalletHistorySection
-        userId={employee.id}
-        basePath={`/employees/${employee.id}`}
-        isOwner={true}
-        page={page}
-        type={sp.type}
-        from={sp.from}
-        to={sp.to}
-      />
+      {/* Tab content */}
+      {tab === "payroll" ? (
+        <PayrollTabSection
+          userId={employee.id}
+          employeeName={employee.name}
+          walletBalancePaise={walletBalance.toString()}
+          companyId={companyId!}
+          basePath={basePath}
+          isOwnerOrManager={isOwnerOrManager}
+          page={page}
+          from={sp.from}
+          to={sp.to}
+        />
+      ) : (
+        <>
+          {isOwnerOrManager && (
+            <div className="flex justify-end">
+              <ReconcileModal userId={employee.id} basePath={basePath} />
+            </div>
+          )}
+          <WalletHistorySection
+            userId={employee.id}
+            basePath={basePath}
+            isOwner={isOwner}
+            page={page}
+            type={sp.type}
+            from={sp.from}
+            to={sp.to}
+          />
+        </>
+      )}
     </div>
   );
 }

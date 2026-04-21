@@ -12,18 +12,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockDb = vi.hoisted(() => ({
   vendor: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   site: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
-  user: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+  user: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
   purchase: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   walletTransaction: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), aggregate: vi.fn() },
   materialTransfer: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   siteIncome: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   siteAssignment: { findFirst: vi.fn(), findUnique: vi.fn(), deleteMany: vi.fn() },
-  attendance: { findUnique: vi.fn(), findMany: vi.fn(), upsert: vi.fn() },
+  attendance: { findUnique: vi.fn(), findMany: vi.fn(), upsert: vi.fn(), create: vi.fn(), update: vi.fn() },
   siteUpdate: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
   materialConsumption: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
   assetCategory: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
   asset: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
   assetAllocation: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+  payrollNote: { create: vi.fn() },
   $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(mockDb)),
 }));
 
@@ -52,6 +53,8 @@ import { voidWalletTransaction } from "@/app/actions/wallet";
 import { voidMaterialTransfer } from "@/app/actions/material-transfers";
 import { unassignSupervisor } from "@/app/actions/site-assignments";
 import { updateAsset, changeAssetStatus, deleteAsset, voidAssetAllocation } from "@/app/actions/assets";
+import { createSalaryPayment, addPayrollNote } from "@/app/actions/payroll";
+import { createBulkAttendance } from "@/app/actions/bulk-attendance";
 import { updateCategory, deleteCategory } from "@/app/actions/asset-categories";
 import { voidSiteUpdate } from "@/app/actions/site-updates";
 import { voidConsumption } from "@/app/actions/material-consumption";
@@ -504,5 +507,106 @@ describe("Prisma safety guard", () => {
       expect(() => guardMissingCompanyId(model, { where: { companyId: COMPANY_A } }))
         .not.toThrow();
     }
+  });
+});
+
+// ─── 15. Payroll isolation (Phase 12) ─────────────────────────────────────────
+
+function p12TodayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+describe("payroll isolation", () => {
+  it("rejects salary payment to an employee from another company", async () => {
+    // user.findFirst returns null → employee not in COMPANY_A
+    vi.mocked(mockDb.user.findFirst).mockResolvedValue(null);
+
+    const result = await createSalaryPayment(
+      null,
+      makeForm({
+        employeeId: "emp-b",
+        amountPaise: "2000000",
+        paymentDate: p12TodayISO(),
+      })
+    ) as { success: false; error: string };
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/not found/i);
+    expect(mockDb.walletTransaction.create).not.toHaveBeenCalled();
+  });
+
+  it("allows salary payment to an employee in the caller's own company", async () => {
+    vi.mocked(mockDb.user.findFirst).mockResolvedValue({
+      id: "emp-a",
+      companyId: COMPANY_A,
+    } as never);
+    vi.mocked(mockDb.walletTransaction.create).mockResolvedValue({} as never);
+
+    const result = await createSalaryPayment(
+      null,
+      makeForm({
+        employeeId: "emp-a",
+        amountPaise: "2000000",
+        paymentDate: p12TodayISO(),
+      })
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockDb.walletTransaction.create).toHaveBeenCalledOnce();
+  });
+
+  it("rejects payroll note for employee from another company", async () => {
+    vi.mocked(mockDb.user.findFirst).mockResolvedValue(null);
+
+    const result = await addPayrollNote(
+      null,
+      makeForm({
+        userId: "emp-b",
+        note: "Injected note",
+        noteDate: p12TodayISO(),
+      })
+    ) as { success: false; error: string };
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/not found/i);
+    expect(mockDb.payrollNote.create).not.toHaveBeenCalled();
+  });
+});
+
+// ─── 16. Bulk attendance isolation (Phase 12) ─────────────────────────────────
+
+describe("bulk attendance isolation", () => {
+  it("rejects bulk attendance when employee ids belong to another company", async () => {
+    // findMany returns empty → none of the supplied IDs exist in COMPANY_A
+    vi.mocked(mockDb.user.findMany).mockResolvedValue([]);
+    vi.mocked(mockDb.attendance.findMany).mockResolvedValue([]);
+
+    const result = await createBulkAttendance(p12TodayISO(), [
+      { userId: "emp-b", status: "PRESENT" },
+    ]) as { success: false; error: string };
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/company/i);
+    expect(mockDb.attendance.create).not.toHaveBeenCalled();
+  });
+
+  it("only marks employees found in caller's own company", async () => {
+    // Only emp-a is in COMPANY_A; emp-b is not
+    vi.mocked(mockDb.user.findMany).mockResolvedValue([
+      { id: "emp-a", name: "Ramesh", companyId: COMPANY_A },
+    ] as never);
+    vi.mocked(mockDb.attendance.findMany).mockResolvedValue([]);
+    vi.mocked(mockDb.attendance.create).mockResolvedValue({} as never);
+
+    // If we sneak in emp-b, it should be blocked at the company check
+    const result = await createBulkAttendance(p12TodayISO(), [
+      { userId: "emp-a", status: "PRESENT" },
+      { userId: "emp-b", status: "PRESENT" },
+    ]);
+
+    // emp-b is not in the userMap returned by findMany, so the action
+    // should detect a foreign user and fail
+    expect(result.success).toBe(false);
   });
 });

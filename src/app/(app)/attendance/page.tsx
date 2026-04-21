@@ -91,6 +91,11 @@ export default async function AttendancePage() {
           <Button asChild variant="outline" size="sm">
             <Link href="/attendance/history">History</Link>
           </Button>
+          {canManage && (
+            <Button asChild variant="outline" size="sm">
+              <Link href="/attendance/bulk">Bulk Mark</Link>
+            </Button>
+          )}
           <Button asChild size="sm">
             <Link href="/attendance/check-in">
               <Camera className="mr-1.5 h-4 w-4" /> Check In

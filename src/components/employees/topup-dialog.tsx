@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MoneyInput } from "@/components/money-input";
 import { topUpWallet } from "@/app/actions/wallet";
@@ -22,10 +23,15 @@ type ActionResult = { success: true } | { success: false; error: string };
 type Props = {
   employeeId: string;
   employeeName: string;
-  currentBalancePaise: string; // bigint serialized as string
+  currentBalancePaise: string;
   open: boolean;
   onOpenChange: (o: boolean) => void;
 };
+
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 function computePreview(currentPaise: string, amountStr: string): string | null {
   const trimmed = amountStr.trim();
@@ -48,6 +54,7 @@ export function TopUpDialog({
   onOpenChange,
 }: Props) {
   const [amount, setAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(todayISO());
   const [state, formAction, isPending] = useActionState<ActionResult | null, FormData>(
     topUpWallet,
     null
@@ -56,16 +63,19 @@ export function TopUpDialog({
 
   useEffect(() => {
     if (state?.success) {
-      toast.success("Wallet topped up");
+      toast.success("Advance given");
       setAmount("");
+      setPaymentDate(todayISO());
       onOpenChange(false);
       router.refresh();
     }
   }, [state, onOpenChange, router]);
 
-  // Reset amount when dialog opens
   useEffect(() => {
-    if (open) setAmount("");
+    if (open) {
+      setAmount("");
+      setPaymentDate(todayISO());
+    }
   }, [open]);
 
   const preview = computePreview(currentBalancePaise, amount);
@@ -74,7 +84,7 @@ export function TopUpDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Top Up Wallet</DialogTitle>
+          <DialogTitle>Give Advance</DialogTitle>
         </DialogHeader>
 
         <form action={formAction} className="space-y-4 mt-2">
@@ -84,10 +94,12 @@ export function TopUpDialog({
 
           <input type="hidden" name="employeeId" value={employeeId} />
 
-          <p className="text-sm text-muted-foreground">
-            Topping up wallet for{" "}
-            <span className="font-medium text-foreground">{employeeName}</span>
-          </p>
+          {employeeName && (
+            <p className="text-sm text-muted-foreground">
+              Advance for{" "}
+              <span className="font-medium text-foreground">{employeeName}</span>
+            </p>
+          )}
 
           <div className="text-sm">
             <span className="text-muted-foreground">Current balance: </span>
@@ -106,12 +118,24 @@ export function TopUpDialog({
 
           {preview && (
             <div className="rounded-md bg-muted px-3 py-2 text-sm">
-              <span className="text-muted-foreground">After top-up: </span>
+              <span className="text-muted-foreground">After advance: </span>
               <span className="font-semibold tabular-nums text-green-600">
                 {preview}
               </span>
             </div>
           )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="topup-date">Payment date</Label>
+            <Input
+              id="topup-date"
+              name="paymentDate"
+              type="date"
+              value={paymentDate}
+              max={todayISO()}
+              onChange={(e) => setPaymentDate(e.target.value)}
+            />
+          </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="topup-note">Note (optional)</Label>
@@ -135,7 +159,7 @@ export function TopUpDialog({
             </Button>
             <Button type="submit" size="sm" disabled={isPending}>
               <Wallet className="h-4 w-4 mr-1.5" />
-              {isPending ? "Processing…" : "Top Up"}
+              {isPending ? "Processing…" : "Give Advance"}
             </Button>
           </div>
         </form>

@@ -22,6 +22,7 @@ export async function topUpWallet(
   const amountStr = formData.get("amount") as string;
   const noteRaw = formData.get("note") as string | null;
   const note = noteRaw?.slice(0, 200) || null;
+  const paymentDateStr = formData.get("paymentDate") as string | null;
 
   if (!employeeId) return { success: false, error: "Employee ID required" };
   if (!amountStr?.trim()) return { success: false, error: "Amount is required" };
@@ -35,6 +36,16 @@ export async function topUpWallet(
 
   if (amountPaise <= 0n) {
     return { success: false, error: "Amount must be greater than ₹0" };
+  }
+
+  let paymentDate: Date | null = null;
+  if (paymentDateStr) {
+    paymentDate = new Date(paymentDateStr);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (paymentDate > today) {
+      return { success: false, error: "Payment date cannot be in the future" };
+    }
   }
 
   const companyId = owner.effectiveCompanyId!;
@@ -51,6 +62,7 @@ export async function topUpWallet(
           amountPaise,
           siteId: null,
           note: note?.trim() || null,
+          paymentDate: paymentDate ?? new Date(),
         },
       });
     });

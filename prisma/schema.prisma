@@ -36,6 +36,8 @@ enum WalletTxnType {
   TRANSFER_IN
   VENDOR_PAYMENT
   REVERSAL
+  SALARY
+  ADVANCE_RECOVERY
 }
 
 enum Direction {
@@ -105,6 +107,7 @@ model Company {
   assetCategories     AssetCategory[]
   assets              Asset[]
   assetAllocations    AssetAllocation[]
+  payrollNotes        PayrollNote[]
 }
 
 model User {
@@ -145,6 +148,8 @@ model User {
   voidedConsumptions               MaterialConsumption[] @relation("VoidedConsumptions")
   loggedAllocations                AssetAllocation[]     @relation("LoggedAllocations")
   voidedAllocations                AssetAllocation[]     @relation("VoidedAllocations")
+  payrollNotesAsSubject            PayrollNote[]         @relation("PayrollNoteSubject")
+  payrollNotesAsCreator            PayrollNote[]         @relation("PayrollNoteCreator")
 
   @@unique([companyId, username])
   @@index([companyId])
@@ -212,6 +217,7 @@ model WalletTransaction {
   counterparty       User?           @relation("CounterpartyTransactions", fields: [counterpartyUserId], references: [id])
   category           ExpenseCategory?
   note               String?
+  paymentDate        DateTime? @db.Date
   billPhotoUrl       String?
   billPhotoPublicId  String?
   relatedPurchaseId  String?
@@ -454,4 +460,19 @@ model AssetAllocation {
   @@index([assetId, endDate])
   @@index([siteId])
   @@index([startDate])
+}
+
+model PayrollNote {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  userId      String
+  user        User     @relation("PayrollNoteSubject", fields: [userId], references: [id])
+  note        String
+  noteDate    DateTime @db.Date
+  createdById String
+  createdBy   User     @relation("PayrollNoteCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, userId])
 }
