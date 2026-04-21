@@ -7,7 +7,7 @@ import { formatINR, toRupees } from "@/lib/money";
 import { getSitePnL } from "@/lib/site-financials";
 import { getAvailableMaterial } from "@/lib/material";
 import { getAvailableMaterialV2 } from "@/lib/site-materials";
-import { serializeUpdate } from "@/components/sites/updates-tab";
+import { serializeUpdate } from "@/lib/serialize-update";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,6 +113,7 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
       by: ["category"],
       _sum: { amountPaise: true },
       where: {
+        companyId,
         siteId: id,
         direction: "DEBIT",
         type: { in: ["EXPENSE", "VENDOR_PAYMENT"] },
@@ -122,11 +123,11 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
     }),
 
     // Count ALL transactions (including voided) for display total
-    db.walletTransaction.count({ where: { siteId: id } }),
+    db.walletTransaction.count({ where: { companyId, siteId: id } }),
 
     // Fetch ALL transactions including voided (show voided with strikethrough)
     db.walletTransaction.findMany({
-      where: { siteId: id },
+      where: { companyId, siteId: id },
       include: {
         actor: { select: { name: true } },
         loggedBy: { select: { name: true } },
@@ -139,10 +140,10 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
     // Material currently at this site
     getAvailableMaterial(id, companyId!),
 
-    db.purchase.count({ where: { destinationSiteId: id } }),
+    db.purchase.count({ where: { companyId, destinationSiteId: id } }),
 
     db.purchase.findMany({
-      where: { destinationSiteId: id },
+      where: { companyId, destinationSiteId: id },
       include: {
         vendor: { select: { name: true } },
         paidBy: { select: { name: true } },
@@ -152,14 +153,14 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
     }),
 
     db.materialTransfer.findMany({
-      where: { toSiteId: id },
+      where: { companyId, toSiteId: id },
       include: { fromSite: { select: { name: true } } },
       orderBy: { transferDate: "desc" },
       take: 10,
     }),
 
     db.materialTransfer.findMany({
-      where: { fromSiteId: id },
+      where: { companyId, fromSiteId: id },
       include: { toSite: { select: { name: true } } },
       orderBy: { transferDate: "desc" },
       take: 10,
@@ -167,14 +168,14 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
 
     // Site income rows (all, including voided — shown with strikethrough)
     db.siteIncome.findMany({
-      where: { siteId: id },
+      where: { companyId, siteId: id },
       include: { loggedBy: { select: { name: true } } },
       orderBy: { receivedDate: "desc" },
     }),
 
     // Assigned supervisors
     db.siteAssignment.findMany({
-      where: { siteId: id },
+      where: { companyId, siteId: id },
       include: { user: { select: { id: true, name: true, role: true, title: true } } },
     }),
 
@@ -191,16 +192,16 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
 
     // Site updates (first page)
     db.siteUpdate.findMany({
-      where: { siteId: id, voidedAt: null },
+      where: { companyId, siteId: id, voidedAt: null },
       include: { submittedBy: { select: { id: true, name: true, title: true } } },
       orderBy: { createdAt: "desc" },
       take: 20,
     }),
-    db.siteUpdate.count({ where: { siteId: id, voidedAt: null } }),
+    db.siteUpdate.count({ where: { companyId, siteId: id, voidedAt: null } }),
 
     // Material consumption history
     db.materialConsumption.findMany({
-      where: { siteId: id },
+      where: { companyId, siteId: id },
       include: { loggedBy: { select: { name: true } } },
       orderBy: { consumedDate: "desc" },
       take: 30,
@@ -211,7 +212,7 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
 
     // Asset allocations for Assets tab
     db.assetAllocation.findMany({
-      where: { siteId: id },
+      where: { companyId, siteId: id },
       include: {
         asset: {
           select: {

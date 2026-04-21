@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { PostUpdateDialog } from "./post-update-dialog";
 import { UpdateCard } from "./update-card";
 import { fetchSiteUpdates } from "@/app/actions/site-updates";
-import type { SerializedUpdate } from "./update-card";
+import { serializeUpdate } from "@/lib/serialize-update";
+import type { SerializedUpdate } from "@/lib/serialize-update";
 
 interface UpdatesTabProps {
   siteId: string;

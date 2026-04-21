@@ -16,22 +16,7 @@ import { voidSiteUpdate } from "@/app/actions/site-updates";
 import { PostUpdateDialog } from "./post-update-dialog";
 import type { PhotoItem } from "@/app/actions/site-updates";
 
-export interface SerializedUpdate {
-  id: string;
-  siteId: string;
-  siteName?: string;   // present in cross-site feed
-  workDone: string;
-  headcount: number | null;
-  blockers: string | null;
-  photos: PhotoItem[];
-  submittedById: string;
-  submitterName: string;
-  submitterTitle: string | null;
-  editedAt: Date | null;
-  createdAt: Date;
-  canEdit: boolean;
-  canVoid: boolean;
-}
+export type { SerializedUpdate } from "@/lib/serialize-update";
 
 // ─── Photo lightbox ───────────────────────────────────────────────────────────
 
