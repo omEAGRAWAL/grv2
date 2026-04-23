@@ -7,8 +7,14 @@ cloudinary.config({
   secure: true,
 });
 
-const UPLOAD_PRESET = "constructhub_bills";
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+function getConfiguredUploadPreset(): string | null {
+  const preset =
+    process.env.CLOUDINARY_UPLOAD_PRESET?.trim() ||
+    process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET?.trim() ||
+    "";
+
+  return preset || null;
+}
 
 export interface UploadSignature {
   signature: string;
@@ -16,24 +22,25 @@ export interface UploadSignature {
   apiKey: string;
   cloudName: string;
   folder: string;
-  uploadPreset: string;
+  uploadPreset: string | null;
 }
 
 /**
  * Generate a signed upload signature for client-side Cloudinary uploads.
- * Restricts to: a specific folder, images only, max 5 MB, and the
- * "constructhub_bills" upload preset.
+ * Restricts to: a specific folder.
+ * If an upload preset is configured, include it in the signed params.
  */
 export function getUploadSignature(folder: string): UploadSignature {
   const timestamp = Math.round(Date.now() / 1000);
+  const uploadPreset = getConfiguredUploadPreset();
 
   const paramsToSign: Record<string, string | number> = {
     folder,
     timestamp,
-    upload_preset: UPLOAD_PRESET,
-    resource_type: "image",
-    max_bytes: MAX_BYTES,
   };
+  if (uploadPreset) {
+    paramsToSign.upload_preset = uploadPreset;
+  }
 
   const signature = cloudinary.utils.api_sign_request(
     paramsToSign,
@@ -46,7 +53,7 @@ export function getUploadSignature(folder: string): UploadSignature {
     apiKey: process.env.CLOUDINARY_API_KEY!,
     cloudName: process.env.CLOUDINARY_CLOUD_NAME!,
     folder,
-    uploadPreset: UPLOAD_PRESET,
+    uploadPreset,
   };
 }
 

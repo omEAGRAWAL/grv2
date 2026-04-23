@@ -125,17 +125,21 @@ Fill in `.env`:
 | `CLOUDINARY_API_KEY` | Cloudinary → Settings → Access Keys |
 | `CLOUDINARY_API_SECRET` | Cloudinary → Settings → Access Keys |
 | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Same as `CLOUDINARY_CLOUD_NAME` |
-| `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET` | `constructhub_bills` (see below) |
+| `CLOUDINARY_UPLOAD_PRESET` | Optional. Only set if you want a named signed upload preset |
+| `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET` | Optional mirror of `CLOUDINARY_UPLOAD_PRESET` |
 
-### 3. Cloudinary upload preset
+### 3. Cloudinary upload preset (optional)
+
+The app uploads directly with signed requests, so you do not need a preset.
+
+If you want Cloudinary-managed preset rules:
 
 1. Cloudinary Dashboard → Settings → Upload → Upload presets → Add preset
-2. Preset name: `constructhub_bills`
+2. Choose any preset name
 3. Signing mode: `Signed`
-4. Folder: `bill-photos`
-5. Allowed formats: `jpg, jpeg, png, webp, heic`
-6. Max file size: `5 MB`
-7. Save
+4. Save it
+5. Set `CLOUDINARY_UPLOAD_PRESET` to that preset name
+6. Optionally set `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET` to the same value
 
 ### 4. Run database migrations
 

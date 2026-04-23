@@ -62,7 +62,9 @@ function PostUpdateForm({ siteId, close, existing, onSuccess }: PostUpdateFormPr
         fd.append("timestamp", String(sig.timestamp));
         fd.append("signature", sig.signature);
         fd.append("folder", sig.folder);
-        fd.append("upload_preset", sig.uploadPreset);
+        if (sig.uploadPreset) {
+          fd.append("upload_preset", sig.uploadPreset);
+        }
         const res = await fetch(
           `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`,
           { method: "POST", body: fd }
