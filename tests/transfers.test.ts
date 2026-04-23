@@ -4,13 +4,14 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getWalletBalance } from "@/lib/wallet";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    user: { findUnique: vi.fn() },
+vi.mock("@/lib/db", () => {
+  const mockDb = {
+    user: { findFirst: vi.fn() },
     walletTransaction: { create: vi.fn() },
     $transaction: vi.fn(async (fn: (tx: typeof db) => Promise<unknown>) => fn(db)),
-  },
-}));
+  };
+  return { db: mockDb, getUnscopedDb: () => mockDb, getCompanyScopedDb: () => mockDb };
+});
 
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/wallet", () => ({ getWalletBalance: vi.fn() }));
@@ -22,7 +23,7 @@ const mockEmp2     = { id: "emp2", role: "EMPLOYEE", name: "Suresh", isActive: t
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(db.user.findUnique)
+  vi.mocked(db.user.findFirst)
     .mockResolvedValueOnce(mockEmployee as any)   // fromUser
     .mockResolvedValueOnce(mockEmp2 as any);      // toUser
   vi.mocked(db.walletTransaction.create).mockResolvedValue({} as any);

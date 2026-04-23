@@ -6,29 +6,16 @@ import { voidSiteIncome } from "@/app/actions/incomes";
 import { db } from "@/lib/db";
 import { requireOwner } from "@/lib/auth";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    walletTransaction: {
-      findUnique: vi.fn(),
-      findFirst: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-    },
-    purchase: {
-      findUnique: vi.fn(),
-      update: vi.fn(),
-    },
-    materialTransfer: {
-      findUnique: vi.fn(),
-      update: vi.fn(),
-    },
-    siteIncome: {
-      findUnique: vi.fn(),
-      update: vi.fn(),
-    },
+vi.mock("@/lib/db", () => {
+  const mockDb = {
+    walletTransaction: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+    purchase: { findUnique: vi.fn(), update: vi.fn() },
+    materialTransfer: { findUnique: vi.fn(), update: vi.fn() },
+    siteIncome: { findUnique: vi.fn(), update: vi.fn() },
     $transaction: vi.fn(async (fn: (tx: typeof db) => Promise<unknown>) => fn(db)),
-  },
-}));
+  };
+  return { db: mockDb, getUnscopedDb: () => mockDb, getCompanyScopedDb: () => mockDb };
+});
 
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));

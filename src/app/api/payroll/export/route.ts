@@ -7,7 +7,6 @@ import type { WalletTxnType } from "@prisma/client";
 const HEADERS = ["Payment Date", "Type", "Direction", "Amount (₹)", "Note", "Logged By", "Voided"];
 
 const TYPE_LABELS: Record<string, string> = {
-  TOPUP: "Advance",
   SALARY: "Salary",
   ADVANCE_RECOVERY: "Recovery",
 };
@@ -32,7 +31,7 @@ export async function GET(req: NextRequest) {
   });
   if (!employee) return NextResponse.json({ error: "Employee not found" }, { status: 404 });
 
-  const payrollTypes: WalletTxnType[] = ["TOPUP", "SALARY", "ADVANCE_RECOVERY"];
+  const payrollTypes: WalletTxnType[] = ["SALARY", "ADVANCE_RECOVERY"];
   const txns = await db.walletTransaction.findMany({
     where: { actorUserId: userId, companyId, type: { in: payrollTypes } },
     include: { loggedBy: { select: { name: true } } },

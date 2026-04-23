@@ -5,19 +5,16 @@ import { db } from "@/lib/db";
 import { getCurrentUser, requireOwner } from "@/lib/auth";
 import { getWalletBalance } from "@/lib/wallet";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    vendor: { findUnique: vi.fn() },
-    user:   { findUnique: vi.fn() },
+vi.mock("@/lib/db", () => {
+  const mockDb = {
+    vendor: { findFirst: vi.fn() },
+    user: { findFirst: vi.fn() },
     purchase: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
-    walletTransaction: {
-      create: vi.fn(),
-      findFirst: vi.fn(),
-      update: vi.fn(),
-    },
+    walletTransaction: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     $transaction: vi.fn(async (fn: (tx: typeof db) => Promise<unknown>) => fn(db)),
-  },
-}));
+  };
+  return { db: mockDb, getUnscopedDb: () => mockDb, getCompanyScopedDb: () => mockDb };
+});
 
 vi.mock("@/lib/auth", () => ({
   getCurrentUser: vi.fn(),
@@ -35,8 +32,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(requireOwner).mockResolvedValue(mockOwner as any);
   vi.mocked(getCurrentUser).mockResolvedValue(mockOwner as any);
-  vi.mocked(db.vendor.findUnique).mockResolvedValue(mockVendor as any);
-  vi.mocked(db.user.findUnique).mockResolvedValue(mockEmployee as any);
+  vi.mocked(db.vendor.findFirst).mockResolvedValue(mockVendor as any);
+  vi.mocked(db.user.findFirst).mockResolvedValue(mockEmployee as any);
   vi.mocked(db.purchase.create).mockResolvedValue({ id: "pur1", totalPaise: 26550n } as any);
   vi.mocked(db.purchase.findUnique).mockResolvedValue(null);
   vi.mocked(db.walletTransaction.create).mockResolvedValue({} as any);
@@ -162,7 +159,7 @@ describe("createPurchase", () => {
   });
 
   it("fails when vendor not found", async () => {
-    vi.mocked(db.vendor.findUnique).mockResolvedValue(null);
+    vi.mocked(db.vendor.findFirst).mockResolvedValue(null);
 
     const result = await createPurchase(null, makeForm(baseFields));
 

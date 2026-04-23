@@ -2,26 +2,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { getSiteSpend, getSiteIncome, getSitePnL } from "@/lib/site-financials";
 import { db } from "@/lib/db";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    walletTransaction: {
-      aggregate: vi.fn(),
-      groupBy: vi.fn(),
-    },
-    purchase: {
-      aggregate: vi.fn(),
-      groupBy: vi.fn(),
-    },
-    materialTransfer: {
-      aggregate: vi.fn(),
-      groupBy: vi.fn(),
-    },
-    siteIncome: {
-      aggregate: vi.fn(),
-      groupBy: vi.fn(),
-    },
-  },
-}));
+vi.mock("@/lib/db", () => {
+  const mockDb = {
+    walletTransaction: { aggregate: vi.fn(), groupBy: vi.fn() },
+    purchase: { aggregate: vi.fn(), groupBy: vi.fn() },
+    materialTransfer: { aggregate: vi.fn(), groupBy: vi.fn() },
+    siteIncome: { aggregate: vi.fn(), groupBy: vi.fn() },
+    assetAllocation: { findMany: vi.fn() },
+  };
+  return { db: mockDb, getUnscopedDb: () => mockDb, getCompanyScopedDb: () => mockDb };
+});
 
 function mockAgg(val: bigint | null) {
   return { _sum: { amountPaise: val, totalPaise: val, costMovedPaise: val } };
@@ -33,6 +23,7 @@ beforeEach(() => {
   vi.mocked(db.purchase.aggregate).mockResolvedValue(mockAgg(0n) as any);
   vi.mocked(db.materialTransfer.aggregate).mockResolvedValue(mockAgg(0n) as any);
   vi.mocked(db.siteIncome.aggregate).mockResolvedValue(mockAgg(0n) as any);
+  vi.mocked(db.assetAllocation.findMany).mockResolvedValue([]);
 });
 
 // ─── getSiteIncome ────────────────────────────────────────────────────────────

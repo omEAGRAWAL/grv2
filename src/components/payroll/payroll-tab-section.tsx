@@ -13,13 +13,11 @@ const db = getUnscopedDb();
 const ITEMS_PER_PAGE = 20;
 
 const TYPE_LABELS: Record<string, string> = {
-  TOPUP: "Advance",
   SALARY: "Salary",
   ADVANCE_RECOVERY: "Recovery",
 };
 
 const TYPE_CLASSES: Record<string, string> = {
-  TOPUP: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   SALARY: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
   ADVANCE_RECOVERY: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
 };
@@ -27,7 +25,6 @@ const TYPE_CLASSES: Record<string, string> = {
 type Props = {
   userId: string;
   employeeName: string;
-  walletBalancePaise: string;
   companyId: string;
   basePath: string;
   isOwnerOrManager: boolean;
@@ -56,7 +53,6 @@ function buildPageUrl(basePath: string, page: number, from?: string, to?: string
 export async function PayrollTabSection({
   userId,
   employeeName,
-  walletBalancePaise,
   companyId,
   basePath,
   isOwnerOrManager,
@@ -64,12 +60,13 @@ export async function PayrollTabSection({
   from,
   to,
 }: Props) {
-  const payrollTypes: WalletTxnType[] = ["TOPUP", "SALARY", "ADVANCE_RECOVERY"];
+  // Ledger shows only payroll transactions (not wallet top-ups)
+  const ledgerTypes: WalletTxnType[] = ["SALARY", "ADVANCE_RECOVERY"];
 
   const baseWhere = {
     actorUserId: userId,
     companyId,
-    type: { in: payrollTypes },
+    type: { in: ledgerTypes },
   };
 
   const dateCondition =
@@ -93,7 +90,7 @@ export async function PayrollTabSection({
         }
       : {};
 
-  const [txns, total, summaryRows, notes] = await Promise.all([
+  const [txns, total, summaryRows, advanceSummary, notes] = await Promise.all([
     db.walletTransaction.findMany({
       where: { ...baseWhere, ...dateCondition },
       include: { loggedBy: { select: { name: true } } },
@@ -107,6 +104,17 @@ export async function PayrollTabSection({
       where: { ...baseWhere, voidedAt: null },
       _sum: { amountPaise: true },
     }),
+    // Advances (TOPUP) queried separately — wallet operations, not in ledger
+    db.walletTransaction.groupBy({
+      by: ["type"],
+      where: {
+        actorUserId: userId,
+        companyId,
+        type: { in: ["TOPUP", "ADVANCE_RECOVERY"] as WalletTxnType[] },
+        voidedAt: null,
+      },
+      _sum: { amountPaise: true },
+    }),
     db.payrollNote.findMany({
       where: { userId, companyId },
       include: { createdBy: { select: { name: true } } },
@@ -118,14 +126,16 @@ export async function PayrollTabSection({
     summaryRows.map((s) => [s.type, s._sum.amountPaise ?? 0n])
   ) as Record<string, bigint>;
 
-  const totalAdvances = sumMap["TOPUP"] ?? 0n;
+  const advMap = Object.fromEntries(
+    advanceSummary.map((s) => [s.type, s._sum.amountPaise ?? 0n])
+  ) as Record<string, bigint>;
+
   const totalSalary = sumMap["SALARY"] ?? 0n;
   const totalRecovery = sumMap["ADVANCE_RECOVERY"] ?? 0n;
-  const outstandingAdvance =
-    totalAdvances > totalRecovery + totalSalary
-      ? totalAdvances - totalRecovery - totalSalary
-      : 0n;
-  const netPosition = BigInt(walletBalancePaise);
+  const totalAdvances = advMap["TOPUP"] ?? 0n;
+  const totalAdvRecovery = advMap["ADVANCE_RECOVERY"] ?? 0n;
+  // Outstanding advance = advances given - recoveries deducted from salary
+  const outstandingAdvance = totalAdvances > totalAdvRecovery ? totalAdvances - totalAdvRecovery : 0n;
 
   const hasNext = page * ITEMS_PER_PAGE < total;
   const hasPrev = page > 1;
@@ -133,20 +143,15 @@ export async function PayrollTabSection({
   return (
     <div className="space-y-6">
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Total Advances", value: totalAdvances, color: "text-amber-600" },
           { label: "Salary Paid", value: totalSalary, color: "text-green-600" },
+          { label: "Advance Given", value: totalAdvances, color: "text-amber-600" },
           { label: "Recovered", value: totalRecovery, color: "text-blue-600" },
           {
             label: "Outstanding Advance",
             value: outstandingAdvance,
             color: outstandingAdvance > 0n ? "text-orange-600" : "text-muted-foreground",
-          },
-          {
-            label: "Net Position",
-            value: netPosition,
-            color: netPosition > 0n ? "text-amber-600" : "text-muted-foreground",
           },
         ].map(({ label, value, color }) => (
           <Card key={label}>
@@ -169,7 +174,6 @@ export async function PayrollTabSection({
         <PayrollActionButtonsClient
           userId={userId}
           employeeName={employeeName}
-          walletBalancePaise={walletBalancePaise}
           outstandingAdvancePaise={outstandingAdvance.toString()}
         />
       )}
@@ -211,7 +215,7 @@ export async function PayrollTabSection({
         )}
       </form>
 
-      {/* Ledger table */}
+      {/* Payroll ledger — salary and recoveries only */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">

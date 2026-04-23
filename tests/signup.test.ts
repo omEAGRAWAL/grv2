@@ -5,20 +5,15 @@ import { checkSignupRateLimit, recordSignupAttempt, _signupStore, SIGNUP_MAX_EXP
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────────
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    company: {
-      findUnique: vi.fn(),
-      findFirst: vi.fn(),
-      create: vi.fn(),
-    },
-    user: {
-      create: vi.fn(),
-      findFirst: vi.fn(),
-    },
+vi.mock("@/lib/db", () => {
+  const mockDb = {
+    company: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
+    user: { create: vi.fn(), findFirst: vi.fn() },
+    assetCategory: { createMany: vi.fn() },
     $transaction: vi.fn(),
-  },
-}));
+  };
+  return { db: mockDb, getUnscopedDb: () => mockDb, getCompanyScopedDb: () => mockDb };
+});
 
 vi.mock("@/lib/auth", () => ({
   hashPassword: vi.fn().mockResolvedValue("hashed"),
@@ -97,6 +92,7 @@ describe("signupCompany server action", () => {
     vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn({
       company: { create: vi.fn().mockResolvedValue({ id: "c1" }) },
       user: { create: vi.fn() },
+      assetCategory: { createMany: vi.fn() },
     }));
     vi.mocked(db.user.findFirst).mockResolvedValue({
       id: "u1",

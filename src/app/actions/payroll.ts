@@ -183,7 +183,7 @@ export async function getPayrollLedger(
   const where = {
     actorUserId: employeeId,
     companyId,
-    type: { in: ["TOPUP", "SALARY", "ADVANCE_RECOVERY"] as WalletTxnType[] },
+    type: { in: ["SALARY", "ADVANCE_RECOVERY"] as WalletTxnType[] },
     ...(from || to
       ? {
           OR: [
@@ -219,7 +219,7 @@ export async function getPayrollLedger(
       where: {
         actorUserId: employeeId,
         companyId,
-        type: { in: ["TOPUP", "SALARY", "ADVANCE_RECOVERY"] as WalletTxnType[] },
+        type: { in: ["SALARY", "ADVANCE_RECOVERY"] as WalletTxnType[] },
         voidedAt: null,
       },
       _sum: { amountPaise: true },
@@ -235,22 +235,16 @@ export async function getPayrollLedger(
     summary.map((s) => [s.type, s._sum.amountPaise ?? 0n])
   );
 
-  const totalAdvances = (sumMap["TOPUP"] as bigint | undefined) ?? 0n;
   const totalSalary = (sumMap["SALARY"] as bigint | undefined) ?? 0n;
   const totalRecovery = (sumMap["ADVANCE_RECOVERY"] as bigint | undefined) ?? 0n;
-  const outstandingAdvance = totalAdvances > totalRecovery + totalSalary
-    ? totalAdvances - totalRecovery - totalSalary
-    : 0n;
 
   return {
     txns,
     total,
     notes,
     summary: {
-      totalAdvances,
       totalSalary,
       totalRecovery,
-      outstandingAdvance,
     },
   };
 }

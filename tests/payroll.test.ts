@@ -263,7 +263,7 @@ describe("payroll CSV export type coverage", () => {
     expect(vi.mocked(db.walletTransaction.findMany)).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          type: { in: expect.arrayContaining(["TOPUP", "SALARY", "ADVANCE_RECOVERY"]) },
+          type: { in: expect.arrayContaining(["SALARY", "ADVANCE_RECOVERY"]) },
         }),
       })
     );

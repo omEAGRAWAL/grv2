@@ -32,17 +32,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: user ? `${user.name} — ConstructHub` : "Employee" };
 }
 
-async function getMonthSummary(userId: string) {
+async function getMonthSummary(userId: string, companyId: string) {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const [creditAgg, debitAgg] = await Promise.all([
     db.walletTransaction.aggregate({
       _sum: { amountPaise: true },
-      where: { actorUserId: userId, direction: "CREDIT", voidedAt: null, createdAt: { gte: startOfMonth } },
+      where: { actorUserId: userId, companyId, direction: "CREDIT", voidedAt: null, createdAt: { gte: startOfMonth } },
     }),
     db.walletTransaction.aggregate({
       _sum: { amountPaise: true },
-      where: { actorUserId: userId, direction: "DEBIT", voidedAt: null, createdAt: { gte: startOfMonth } },
+      where: { actorUserId: userId, companyId, direction: "DEBIT", voidedAt: null, createdAt: { gte: startOfMonth } },
     }),
   ]);
   return {
@@ -82,7 +82,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
 
   const [walletBalance, monthSummary] = await Promise.all([
     getWalletBalance(employee.id),
-    getMonthSummary(employee.id),
+    getMonthSummary(employee.id, companyId!),
   ]);
 
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
@@ -210,7 +210,6 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
         <PayrollTabSection
           userId={employee.id}
           employeeName={employee.name}
-          walletBalancePaise={walletBalance.toString()}
           companyId={companyId!}
           basePath={basePath}
           isOwnerOrManager={isOwnerOrManager}

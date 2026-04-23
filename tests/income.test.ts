@@ -3,17 +3,14 @@ import { createSiteIncome, voidSiteIncome } from "@/app/actions/incomes";
 import { db } from "@/lib/db";
 import { requireOwner } from "@/lib/auth";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    site: { findUnique: vi.fn() },
-    siteIncome: {
-      create: vi.fn(),
-      findUnique: vi.fn(),
-      update: vi.fn(),
-    },
+vi.mock("@/lib/db", () => {
+  const mockDb = {
+    site: { findFirst: vi.fn() },
+    siteIncome: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     $transaction: vi.fn(async (fn: (tx: typeof db) => Promise<unknown>) => fn(db)),
-  },
-}));
+  };
+  return { db: mockDb, getUnscopedDb: () => mockDb, getCompanyScopedDb: () => mockDb };
+});
 
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -23,7 +20,7 @@ const mockOwner = { id: "own1", role: "OWNER", name: "Owner", isActive: true };
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(requireOwner).mockResolvedValue(mockOwner as any);
-  vi.mocked(db.site.findUnique).mockResolvedValue({ id: "site1" } as any);
+  vi.mocked(db.site.findFirst).mockResolvedValue({ id: "site1" } as any);
   vi.mocked(db.siteIncome.create).mockResolvedValue({ id: "inc1" } as any);
   vi.mocked(db.siteIncome.findUnique).mockResolvedValue(null);
   vi.mocked(db.siteIncome.update).mockResolvedValue({} as any);
@@ -80,7 +77,7 @@ describe("createSiteIncome", () => {
   });
 
   it("fails when site is not found", async () => {
-    vi.mocked(db.site.findUnique).mockResolvedValue(null);
+    vi.mocked(db.site.findFirst).mockResolvedValue(null);
 
     const result = await createSiteIncome(null, makeForm(baseFields));
 

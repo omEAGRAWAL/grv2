@@ -2,16 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { getWalletBalance, getCashWithTeam } from "@/lib/wallet";
 import { db } from "@/lib/db";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    walletTransaction: {
-      findMany: vi.fn(),
-    },
-    user: {
-      findMany: vi.fn(),
-    },
-  },
-}));
+vi.mock("@/lib/db", () => {
+  const mockDb = {
+    walletTransaction: { findMany: vi.fn() },
+    user: { findMany: vi.fn() },
+  };
+  return { db: mockDb, getUnscopedDb: () => mockDb, getCompanyScopedDb: () => mockDb };
+});
 
 beforeEach(() => {
   vi.clearAllMocks();

@@ -4,14 +4,12 @@ import { getSites } from "@/lib/sites";
 import { db } from "@/lib/db";
 import { requireOwner } from "@/lib/auth";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    site: {
-      create: vi.fn(),
-      findMany: vi.fn(),
-    },
-  },
-}));
+vi.mock("@/lib/db", () => {
+  const mockDb = {
+    site: { create: vi.fn(), findMany: vi.fn() },
+  };
+  return { db: mockDb, getUnscopedDb: () => mockDb, getCompanyScopedDb: () => mockDb };
+});
 
 vi.mock("@/lib/auth", () => ({
   requireOwner: vi.fn(),

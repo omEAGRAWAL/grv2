@@ -2,13 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { getSiteSpend } from "@/lib/site-financials";
 import { db } from "@/lib/db";
 
-vi.mock("@/lib/db", () => ({
-  db: {
+vi.mock("@/lib/db", () => {
+  const mockDb = {
     walletTransaction: { aggregate: vi.fn() },
-    purchase:          { aggregate: vi.fn() },
-    materialTransfer:  { aggregate: vi.fn() },
-  },
-}));
+    purchase: { aggregate: vi.fn() },
+    materialTransfer: { aggregate: vi.fn() },
+    assetAllocation: { findMany: vi.fn() },
+  };
+  return { db: mockDb, getUnscopedDb: () => mockDb, getCompanyScopedDb: () => mockDb };
+});
 
 // Helper to set up mock responses for all 4 aggregates.
 // Order of calls: walletTransaction.aggregate (A), purchase.aggregate (B),
@@ -28,6 +30,7 @@ function setupMocks(A: bigint, B: bigint, C: bigint, D: bigint) {
 describe("getSiteSpend", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(db.assetAllocation.findMany).mockResolvedValue([]);
   });
 
   it("returns 0n for a site with no activity", async () => {

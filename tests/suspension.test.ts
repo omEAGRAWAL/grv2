@@ -2,17 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { loginAction } from "@/app/actions/auth";
 import { db } from "@/lib/db";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    user: {
-      findFirst: vi.fn(),
-      update: vi.fn(),
-    },
-    company: {
-      findUnique: vi.fn(),
-    },
-  },
-}));
+vi.mock("@/lib/db", () => {
+  const mockDb = {
+    user: { findFirst: vi.fn(), update: vi.fn() },
+    company: { findUnique: vi.fn() },
+  };
+  return { db: mockDb, getUnscopedDb: () => mockDb, getCompanyScopedDb: () => mockDb };
+});
 
 vi.mock("@/lib/auth", () => ({
   verifyPassword: vi.fn().mockResolvedValue(true),

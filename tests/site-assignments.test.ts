@@ -4,23 +4,14 @@ import { getSites } from "@/lib/sites";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    site: {
-      findFirst: vi.fn(),
-      findMany: vi.fn(),
-    },
-    user: {
-      findFirst: vi.fn(),
-      findMany: vi.fn(),
-    },
-    siteAssignment: {
-      upsert: vi.fn(),
-      deleteMany: vi.fn(),
-      findMany: vi.fn(),
-    },
-  },
-}));
+vi.mock("@/lib/db", () => {
+  const mockDb = {
+    site: { findFirst: vi.fn(), findMany: vi.fn() },
+    user: { findFirst: vi.fn(), findMany: vi.fn() },
+    siteAssignment: { upsert: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
+  };
+  return { db: mockDb, getUnscopedDb: () => mockDb, getCompanyScopedDb: () => mockDb };
+});
 
 vi.mock("@/lib/auth", () => ({
   requireRole: vi.fn(),

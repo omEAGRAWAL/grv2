@@ -4,14 +4,15 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getWalletBalance } from "@/lib/wallet";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    site: { findUnique: vi.fn() },
-    user: { findUnique: vi.fn() },
+vi.mock("@/lib/db", () => {
+  const mockDb = {
+    site: { findFirst: vi.fn() },
+    user: { findFirst: vi.fn() },
     walletTransaction: { create: vi.fn() },
     $transaction: vi.fn(async (fn: (tx: typeof db) => Promise<unknown>) => fn(db)),
-  },
-}));
+  };
+  return { db: mockDb, getUnscopedDb: () => mockDb, getCompanyScopedDb: () => mockDb };
+});
 
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/wallet", () => ({ getWalletBalance: vi.fn() }));
@@ -24,7 +25,7 @@ const mockSite     = { id: "site1", name: "Site Alpha" };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(db.site.findUnique).mockResolvedValue(mockSite as any);
+  vi.mocked(db.site.findFirst).mockResolvedValue(mockSite as any);
   vi.mocked(db.walletTransaction.create).mockResolvedValue({} as any);
 });
 
@@ -76,7 +77,7 @@ describe("createExpense", () => {
   it("fails when site does not exist", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(mockEmployee as any);
     vi.mocked(getWalletBalance).mockResolvedValue(50000n);
-    vi.mocked(db.site.findUnique).mockResolvedValue(null);
+    vi.mocked(db.site.findFirst).mockResolvedValue(null);
 
     const result = await createExpense(null, makeForm(baseFields));
 
@@ -87,6 +88,7 @@ describe("createExpense", () => {
   it("owner logs on behalf: actorUserId=employee, loggedById=owner", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(mockOwner as any);
     vi.mocked(getWalletBalance).mockResolvedValue(100000n);
+    vi.mocked(db.user.findFirst).mockResolvedValue(mockEmployee as any);
 
     await createExpense(
       null,
