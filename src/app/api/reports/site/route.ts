@@ -13,11 +13,33 @@ const HEADERS = [
   "Amount (₹)",
   "Site",
   "Counterparty",
-  "Vendor",
+  "Vendor / Source",
   "Logged By",
   "Note",
   "Voided",
 ];
+
+type LineItem = {
+  itemName: string;
+  quantity: { toString: () => string };
+  unit: string;
+  lineTotalPaise: bigint;
+};
+
+type PurchaseRow = {
+  id: string;
+  purchaseDate: Date;
+  totalPaise: bigint;
+  itemName: string | null;
+  quantity: { toString: () => string } | null;
+  unit: string | null;
+  note: string | null;
+  voidedAt: Date | null;
+  vendor: { name: string } | null;
+  sellerName: string | null;
+  loggedBy: { name: string };
+  lineItems: LineItem[];
+};
 
 export async function GET(req: NextRequest) {
   let owner;
@@ -41,57 +63,62 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Site not found" }, { status: 404 });
   }
 
-  const [walletTxns, purchases, transfersIn, transfersOut, incomes] =
-    await Promise.all([
-      db.walletTransaction.findMany({
-        where: { siteId },
-        include: {
-          actor: { select: { name: true } },
-          loggedBy: { select: { name: true } },
-          counterparty: { select: { name: true } },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyDb = db as any;
+
+  const [walletTxns, purchases, transfersIn, transfersOut, incomes] = await Promise.all([
+    db.walletTransaction.findMany({
+      where: { siteId },
+      include: {
+        actor: { select: { name: true } },
+        loggedBy: { select: { name: true } },
+        counterparty: { select: { name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+
+    anyDb.purchase.findMany({
+      where: { destinationSiteId: siteId },
+      include: {
+        vendor: { select: { name: true } },
+        loggedBy: { select: { name: true } },
+        lineItems: {
+          orderBy: { displayOrder: "asc" },
+          select: { itemName: true, quantity: true, unit: true, lineTotalPaise: true },
         },
-        orderBy: { createdAt: "asc" },
-      }),
+      },
+      orderBy: { purchaseDate: "asc" },
+    }) as Promise<PurchaseRow[]>,
 
-      db.purchase.findMany({
-        where: { destinationSiteId: siteId },
-        include: {
-          vendor: { select: { name: true } },
-          loggedBy: { select: { name: true } },
-        },
-        orderBy: { purchaseDate: "asc" },
-      }),
+    db.materialTransfer.findMany({
+      where: { toSiteId: siteId },
+      include: {
+        fromSite: { select: { name: true } },
+        loggedBy: { select: { name: true } },
+      },
+      orderBy: { transferDate: "asc" },
+    }),
 
-      db.materialTransfer.findMany({
-        where: { toSiteId: siteId },
-        include: {
-          fromSite: { select: { name: true } },
-          loggedBy: { select: { name: true } },
-        },
-        orderBy: { transferDate: "asc" },
-      }),
+    db.materialTransfer.findMany({
+      where: { fromSiteId: siteId },
+      include: {
+        toSite: { select: { name: true } },
+        loggedBy: { select: { name: true } },
+      },
+      orderBy: { transferDate: "asc" },
+    }),
 
-      db.materialTransfer.findMany({
-        where: { fromSiteId: siteId },
-        include: {
-          toSite: { select: { name: true } },
-          loggedBy: { select: { name: true } },
-        },
-        orderBy: { transferDate: "asc" },
-      }),
+    db.siteIncome.findMany({
+      where: { siteId },
+      include: { loggedBy: { select: { name: true } } },
+      orderBy: { receivedDate: "asc" },
+    }),
+  ]);
 
-      db.siteIncome.findMany({
-        where: { siteId },
-        include: { loggedBy: { select: { name: true } } },
-        orderBy: { receivedDate: "asc" },
-      }),
-    ]);
-
-  type Row = (string | number | bigint | null | undefined)[];
+  type Row = (string | number | null | undefined)[];
   const rows: Row[] = [];
 
   for (const t of walletTxns) {
-    const sign = t.direction === "CREDIT" ? 1n : -1n;
     rows.push([
       csvDate(t.createdAt),
       t.type,
@@ -99,7 +126,7 @@ export async function GET(req: NextRequest) {
       "",
       "",
       "",
-      (sign * t.amountPaise).toString().replace(/^-/, "-").replace(/^(\d)/, "$1"),
+      `${t.direction === "DEBIT" ? "-" : ""}${(Number(t.amountPaise) / 100).toFixed(2)}`,
       site.name,
       t.counterparty?.name ?? "",
       "",
@@ -107,27 +134,48 @@ export async function GET(req: NextRequest) {
       t.note ?? "",
       t.voidedAt ? "Yes" : "No",
     ]);
-    // Fix: output as rupees
-    rows[rows.length - 1][6] =
-      `${t.direction === "DEBIT" ? "-" : ""}${(Number(t.amountPaise) / 100).toFixed(2)}`;
   }
 
   for (const p of purchases) {
-    rows.push([
-      csvDate(p.purchaseDate),
-      "PURCHASE",
-      "MATERIALS",
-      p.itemName,
-      Number(p.quantity).toFixed(4),
-      p.unit,
-      (Number(p.totalPaise) / 100).toFixed(2),
-      site.name,
-      "",
-      p.vendor.name,
-      p.loggedBy.name,
-      p.note ?? "",
-      p.voidedAt ? "Yes" : "No",
-    ]);
+    const sourceLabel = p.vendor?.name ?? (p as any).sellerName ?? "LOCAL";
+    const voided = p.voidedAt ? "Yes" : "No";
+    const loggedByName = p.loggedBy.name;
+
+    if (p.lineItems.length > 0) {
+      for (const li of p.lineItems) {
+        rows.push([
+          csvDate(p.purchaseDate),
+          "PURCHASE",
+          "MATERIALS",
+          li.itemName,
+          Number(li.quantity.toString()).toFixed(4),
+          li.unit,
+          (Number(li.lineTotalPaise) / 100).toFixed(2),
+          site.name,
+          "",
+          sourceLabel,
+          loggedByName,
+          p.note ?? "",
+          voided,
+        ]);
+      }
+    } else {
+      rows.push([
+        csvDate(p.purchaseDate),
+        "PURCHASE",
+        "MATERIALS",
+        p.itemName ?? "",
+        p.quantity ? Number(p.quantity.toString()).toFixed(4) : "",
+        p.unit ?? "",
+        (Number(p.totalPaise) / 100).toFixed(2),
+        site.name,
+        "",
+        sourceLabel,
+        loggedByName,
+        p.note ?? "",
+        voided,
+      ]);
+    }
   }
 
   for (const t of transfersIn) {
@@ -184,7 +232,6 @@ export async function GET(req: NextRequest) {
     ]);
   }
 
-  // Sort all rows by date (column 0)
   rows.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 
   const csv = buildCsv(HEADERS, rows);

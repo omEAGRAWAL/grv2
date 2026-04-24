@@ -20,7 +20,7 @@ vi.mock("@/lib/db", () => {
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-const mockOwner = { id: "own1", role: "OWNER", name: "Owner", isActive: true };
+const mockOwner = { id: "own1", role: "OWNER", name: "Owner", isActive: true, effectiveCompanyId: "cmp1" };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -39,6 +39,7 @@ describe("voidWalletTransaction", () => {
   it("voids an EXPENSE debit and creates a CREDIT REVERSAL", async () => {
     vi.mocked(db.walletTransaction.findUnique).mockResolvedValue({
       id: "txn1",
+      companyId: "cmp1",
       actorUserId: "emp1",
       loggedById: "own1",
       type: "EXPENSE",
@@ -76,6 +77,7 @@ describe("voidWalletTransaction", () => {
   it("fails if transaction already voided", async () => {
     vi.mocked(db.walletTransaction.findUnique).mockResolvedValue({
       id: "txn1",
+      companyId: "cmp1",
       voidedAt: new Date(),
     } as any);
 
@@ -99,6 +101,7 @@ describe("voidWalletTransaction", () => {
     const createdAt = new Date();
     vi.mocked(db.walletTransaction.findUnique).mockResolvedValue({
       id: "tout1",
+      companyId: "cmp1",
       actorUserId: "emp1",
       loggedById: "own1",
       type: "TRANSFER_OUT",
@@ -120,6 +123,7 @@ describe("voidWalletTransaction", () => {
     vi.mocked(db.walletTransaction.findUnique)
       .mockResolvedValueOnce({
         id: "tout1",
+        companyId: "cmp1",
         actorUserId: "emp1",
         loggedById: "own1",
         type: "TRANSFER_OUT",
@@ -163,11 +167,13 @@ describe("voidPurchase", () => {
   it("voids a wallet-paid purchase and creates REVERSAL credit", async () => {
     vi.mocked(db.purchase.findUnique).mockResolvedValue({
       id: "pur1",
+      companyId: "cmp1",
       vendorId: "ven1",
       destinationSiteId: "site1",
       paidByUserId: "emp1",
       totalPaise: 100000n,
       voidedAt: null,
+      payments: [], // legacy v1 path: paidByUserId on Purchase, no PurchasePayment rows
     } as any);
     vi.mocked(db.walletTransaction.findFirst).mockResolvedValue({
       id: "wtxn1",
@@ -199,11 +205,13 @@ describe("voidPurchase", () => {
   it("voids owner-direct purchase without touching wallet", async () => {
     vi.mocked(db.purchase.findUnique).mockResolvedValue({
       id: "pur2",
+      companyId: "cmp1",
       vendorId: "ven1",
       destinationSiteId: null,
       paidByUserId: null,
       totalPaise: 50000n,
       voidedAt: null,
+      payments: [],
     } as any);
 
     const result = await voidPurchase("pur2");
@@ -216,7 +224,9 @@ describe("voidPurchase", () => {
   it("fails if purchase already voided", async () => {
     vi.mocked(db.purchase.findUnique).mockResolvedValue({
       id: "pur3",
+      companyId: "cmp1",
       voidedAt: new Date(),
+      payments: [],
     } as any);
 
     const result = await voidPurchase("pur3");
@@ -232,6 +242,7 @@ describe("voidMaterialTransfer", () => {
   it("voids a material transfer without wallet impact", async () => {
     vi.mocked(db.materialTransfer.findUnique).mockResolvedValue({
       id: "mt1",
+      companyId: "cmp1",
       fromSiteId: "site1",
       toSiteId: "site2",
       voidedAt: null,
@@ -250,6 +261,7 @@ describe("voidMaterialTransfer", () => {
   it("fails if transfer already voided", async () => {
     vi.mocked(db.materialTransfer.findUnique).mockResolvedValue({
       id: "mt1",
+      companyId: "cmp1",
       voidedAt: new Date(),
     } as any);
 

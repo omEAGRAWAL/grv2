@@ -20,7 +20,7 @@ export default async function PurchaseNewPage({
 
   const sp = await searchParams;
 
-  const [vendors, sites, users] = await Promise.all([
+  const [vendors, sites, users, materials] = await Promise.all([
     db.vendor.findMany({ where: { companyId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.site.findMany({
       where: { status: "ACTIVE", companyId },
@@ -32,6 +32,11 @@ export default async function PurchaseNewPage({
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    db.material.findMany({
+      where: { companyId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, unit: true },
+    }),
   ]);
 
   return (
@@ -41,6 +46,7 @@ export default async function PurchaseNewPage({
         vendors={vendors}
         sites={sites}
         users={users}
+        materials={materials}
         defaultVendorId={sp.vendor}
         defaultSiteId={sp.site}
       />

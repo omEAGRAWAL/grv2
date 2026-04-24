@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Building2, Wallet, TrendingUp, AlertTriangle, AlertCircle, Camera } from "lucide-react";
+import { Building2, Wallet, TrendingUp, AlertTriangle, AlertCircle, Camera, Receipt } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { getCashWithTeam } from "@/lib/wallet";
 import { getSites } from "@/lib/sites";
@@ -18,7 +18,7 @@ async function getDashboardStats(companyId: string) {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [activeSiteCount, cashWithTeam, incomeAgg, walletOutAgg, ownerDirectPurchaseAgg] =
+  const [activeSiteCount, cashWithTeam, incomeAgg, walletOutAgg, ownerDirectPurchaseAgg, pendingDuePurchases] =
     await Promise.all([
       db.site.count({ where: { status: "ACTIVE", companyId } }),
       getCashWithTeam(companyId),
@@ -39,13 +39,27 @@ async function getDashboardStats(companyId: string) {
       db.purchase.aggregate({
         _sum: { totalPaise: true },
         where: {
+          paymentStatus: "UNPAID",
           paidByUserId: null,
           createdAt: { gte: startOfMonth },
           voidedAt: null,
           companyId,
         },
       }),
+      // Pending dues: all non-voided UNPAID/PARTIAL purchases with payment totals
+      db.purchase.findMany({
+        where: { companyId, voidedAt: null, paymentStatus: { in: ["UNPAID", "PARTIAL"] } },
+        select: {
+          totalPaise: true,
+          payments: { where: { voidedAt: null }, select: { amountPaidPaise: true } },
+        },
+      }),
     ]);
+
+  const pendingDues = pendingDuePurchases.reduce((sum, p) => {
+    const paid = p.payments.reduce((s, py) => s + py.amountPaidPaise, 0n);
+    return sum + (p.totalPaise - paid);
+  }, 0n);
 
   return {
     activeSiteCount,
@@ -54,6 +68,7 @@ async function getDashboardStats(companyId: string) {
     monthlyOut:
       (walletOutAgg._sum.amountPaise ?? 0n) +
       (ownerDirectPurchaseAgg._sum.totalPaise ?? 0n),
+    pendingDues,
   };
 }
 
@@ -85,7 +100,7 @@ export default async function DashboardPage() {
   const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
   const [stats, allSites, myTodayAttendance, todayAttendanceSummary] = await Promise.all([
-    companyId ? getDashboardStats(companyId) : Promise.resolve({ activeSiteCount: 0, cashWithTeam: 0n, monthlyIn: 0n, monthlyOut: 0n }),
+    companyId ? getDashboardStats(companyId) : Promise.resolve({ activeSiteCount: 0, cashWithTeam: 0n, monthlyIn: 0n, monthlyOut: 0n, pendingDues: 0n }),
     getSites({ companyId, userId: user.id, role: user.role }),
     companyId
       ? db.attendance.findUnique({
@@ -287,6 +302,24 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Pending vendor dues card */}
+      {user.role === "OWNER" && stats.pendingDues > 0n && (
+        <Link href="/purchases?status=UNPAID" className="block">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 flex items-center justify-between gap-4 hover:bg-red-100 transition-colors">
+            <div className="flex items-center gap-3">
+              <Receipt className="h-5 w-5 text-red-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-red-900">Pending Vendor Dues</p>
+                <p className="text-xs text-red-700">Unpaid + partially paid purchases</p>
+              </div>
+            </div>
+            <p className="text-lg font-bold tabular-nums text-red-700 shrink-0">
+              {formatINR(stats.pendingDues)}
+            </p>
+          </div>
+        </Link>
+      )}
 
       {/* Attendance card */}
       <div className="rounded-lg border p-4 flex items-center justify-between gap-4">

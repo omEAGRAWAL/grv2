@@ -142,11 +142,17 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
 
     db.purchase.count({ where: { companyId, destinationSiteId: id } }),
 
-    db.purchase.findMany({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (db as any).purchase.findMany({
       where: { companyId, destinationSiteId: id },
       include: {
         vendor: { select: { name: true } },
         paidBy: { select: { name: true } },
+        lineItems: {
+          orderBy: { displayOrder: "asc" },
+          select: { itemName: true, quantity: true, unit: true },
+          take: 2,
+        },
       },
       orderBy: { purchaseDate: "desc" },
       take: 10,
@@ -559,18 +565,30 @@ export default async function SiteDetailPage({ params, searchParams }: Props) {
         canPostUpdate={canPostUpdate}
         currentUserId={currentUser.id}
         purchaseCount={purchaseCount}
-        recentPurchases={recentPurchases.map((p) => ({
-          id: p.id,
-          purchaseDateFormatted: formatDate(p.purchaseDate),
-          itemName: p.itemName,
-          quantity: Number(p.quantity).toFixed(2),
-          unit: p.unit,
-          totalFormatted: formatINR(p.totalPaise),
-          vendorName: p.vendor.name,
-          paidByName: p.paidBy?.name ?? null,
-          billPhotoUrl: p.billPhotoUrl,
-          isVoided: p.voidedAt !== null,
-        }))}
+        recentPurchases={recentPurchases.map((p: any) => {
+          // Phase 14: multi-item support with legacy fallback
+          const firstItem = p.lineItems?.[0];
+          const moreCount = (p.lineItems?.length ?? 0) > 1 ? p.lineItems.length - 1 : 0;
+          const itemName = firstItem
+            ? moreCount > 0 ? `${firstItem.itemName} +${moreCount} more` : firstItem.itemName
+            : (p.itemName ?? "(items)");
+          const quantity = firstItem
+            ? Number(firstItem.quantity.toString()).toFixed(2)
+            : p.quantity ? Number(p.quantity.toString()).toFixed(2) : "";
+          const unit = firstItem ? firstItem.unit : (p.unit ?? "");
+          return {
+            id: p.id,
+            purchaseDateFormatted: formatDate(p.purchaseDate),
+            itemName,
+            quantity,
+            unit,
+            totalFormatted: formatINR(p.totalPaise),
+            vendorName: p.vendor?.name ?? p.sellerName ?? "LOCAL",
+            paidByName: p.paidBy?.name ?? null,
+            billPhotoUrl: p.billPhotoUrl,
+            isVoided: p.voidedAt !== null,
+          };
+        })}
         transfersIn={transfersIn.map((t) => ({
           id: t.id,
           dateFormatted: formatDate(t.transferDate),

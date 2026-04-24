@@ -8,6 +8,7 @@ import { hashPassword, getSession } from "@/lib/auth";
 import type { SessionData } from "@/lib/session-config";
 import { checkSignupRateLimit, recordSignupAttempt } from "@/lib/rate-limit";
 import { DEFAULT_CATEGORY_NAMES } from "@/lib/assets";
+import { DEFAULT_MATERIAL_LIST } from "@/lib/materials";
 
 const INDIAN_MOBILE_RE = /^[6-9]\d{9}$/;
 
@@ -103,6 +104,15 @@ export async function signupCompany(
       data: DEFAULT_CATEGORY_NAMES.map((name) => ({
         companyId: newCompany.id,
         name,
+        isDefault: true,
+      })),
+    });
+    // Seed default materials for this company
+    await tx.material.createMany({
+      data: DEFAULT_MATERIAL_LIST.map(({ name, unit }) => ({
+        companyId: newCompany.id,
+        name,
+        unit,
         isDefault: true,
       })),
     });

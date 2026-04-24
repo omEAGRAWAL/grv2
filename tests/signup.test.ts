@@ -10,6 +10,7 @@ vi.mock("@/lib/db", () => {
     company: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
     user: { create: vi.fn(), findFirst: vi.fn() },
     assetCategory: { createMany: vi.fn() },
+    material: { createMany: vi.fn() },
     $transaction: vi.fn(),
   };
   return { db: mockDb, getUnscopedDb: () => mockDb, getCompanyScopedDb: () => mockDb };
@@ -93,6 +94,7 @@ describe("signupCompany server action", () => {
       company: { create: vi.fn().mockResolvedValue({ id: "c1" }) },
       user: { create: vi.fn() },
       assetCategory: { createMany: vi.fn() },
+      material: { createMany: vi.fn() },
     }));
     vi.mocked(db.user.findFirst).mockResolvedValue({
       id: "u1",

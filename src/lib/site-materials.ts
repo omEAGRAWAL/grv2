@@ -5,29 +5,48 @@ import { getUnscopedDb } from "@/lib/db";
 const db = getUnscopedDb();
 
 export type AvailableMaterialItem = {
-  itemName: string;     // display casing (most recent)
+  itemName: string;
   unit: string;
-  totalPurchased: string;    // Decimal string
+  totalPurchased: string;
   totalTransferredIn: string;
   totalTransferredOut: string;
   totalConsumed: string;
-  available: string;         // may be negative
+  available: string;
   isNegative: boolean;
+};
+
+type PurchaseWithLineItems = {
+  itemName: string | null;
+  unit: string | null;
+  quantity: { toString: () => string } | null;
+  createdAt: Date;
+  lineItems: { itemName: string; unit: string; quantity: { toString: () => string } }[];
 };
 
 /**
  * Available material at a site, accounting for purchases, transfers, and
- * material consumption records. Allows and flags negative balances.
- *
- * Groups by lowercased+trimmed itemName; display name is the most-recent casing.
+ * consumption records. Supports Phase 14 multi-item purchases (lineItems) with
+ * backward compatibility for legacy single-item purchases.
  */
 export async function getAvailableMaterialV2(siteId: string): Promise<AvailableMaterialItem[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyDb = db as any;
+
   const [purchases, transfersIn, transfersOut, consumptions] = await Promise.all([
-    db.purchase.findMany({
+    anyDb.purchase.findMany({
       where: { destinationSiteId: siteId, voidedAt: null },
-      select: { itemName: true, unit: true, quantity: true, createdAt: true },
+      select: {
+        itemName: true,
+        unit: true,
+        quantity: true,
+        createdAt: true,
+        lineItems: {
+          select: { itemName: true, unit: true, quantity: true },
+          orderBy: { displayOrder: "asc" },
+        },
+      },
       orderBy: { createdAt: "desc" },
-    }),
+    }) as Promise<PurchaseWithLineItems[]>,
     db.materialTransfer.findMany({
       where: { toSiteId: siteId, voidedAt: null },
       select: { itemName: true, unit: true, quantity: true, createdAt: true },
@@ -72,19 +91,26 @@ export async function getAvailableMaterialV2(siteId: string): Promise<AvailableM
       };
       ledger.set(k, entry);
     }
-    // keep most-recent casing (purchases/transfersIn are ordered desc)
-    if (source.createdAt) {
-      entry.displayName = name;
-    }
+    if (source.createdAt) entry.displayName = name;
     return entry;
   }
 
   for (const p of purchases) {
-    const e = ensure(p.itemName, p.unit, p);
-    e.purchased = e.purchased.plus(new Decimal(p.quantity.toString()));
+    if (p.lineItems.length > 0) {
+      // Phase 14: iterate each line item
+      for (const li of p.lineItems) {
+        const e = ensure(li.itemName, li.unit, { createdAt: p.createdAt });
+        e.purchased = e.purchased.plus(new Decimal(li.quantity.toString()));
+      }
+    } else if (p.itemName && p.quantity && p.unit) {
+      // Legacy single-item
+      const e = ensure(p.itemName, p.unit, { createdAt: p.createdAt });
+      e.purchased = e.purchased.plus(new Decimal(p.quantity.toString()));
+    }
   }
+
   for (const t of transfersIn) {
-    const e = ensure(t.itemName, t.unit, t);
+    const e = ensure(t.itemName, t.unit, { createdAt: t.createdAt });
     e.transferredIn = e.transferredIn.plus(new Decimal(t.quantity.toString()));
   }
   for (const t of transfersOut) {

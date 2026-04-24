@@ -25,6 +25,9 @@ const mockDb = vi.hoisted(() => ({
   asset: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
   assetAllocation: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
   payrollNote: { create: vi.fn() },
+  purchasePayment: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
+  purchaseLineItem: { create: vi.fn() },
+  material: { findFirst: vi.fn(), create: vi.fn(), delete: vi.fn(), findMany: vi.fn() },
   $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(mockDb)),
 }));
 
@@ -58,6 +61,8 @@ import { createBulkAttendance } from "@/app/actions/bulk-attendance";
 import { updateCategory, deleteCategory } from "@/app/actions/asset-categories";
 import { voidSiteUpdate } from "@/app/actions/site-updates";
 import { voidConsumption } from "@/app/actions/material-consumption";
+import { addPurchasePayment, voidPurchasePayment } from "@/app/actions/purchases";
+import { createMaterial, deleteMaterial } from "@/app/actions/materials";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -163,13 +168,16 @@ describe("purchase isolation", () => {
     vi.mocked(mockDb.vendor.findFirst).mockResolvedValue(null);
 
     const form = makeForm({
+      purchaseType: "VENDOR",
       vendorId: "vendor-b",
-      itemName: "Steel",
-      quantity: "10",
-      unit: "tons",
-      rateRupees: "50000",
-      discountPercent: "0",
-      gstPercent: "18",
+      lineItemsJson: JSON.stringify([{
+        itemName: "Steel",
+        quantity: "10",
+        unit: "tons",
+        rateRupees: "50000",
+        discountPercent: "0",
+        gstPercent: "18",
+      }]),
       purchaseDate: "2024-01-15",
     });
     const result = await createPurchase(null, form);
@@ -179,7 +187,7 @@ describe("purchase isolation", () => {
   });
 
   it("rejects voiding a purchase that belongs to another company", async () => {
-    const foreignPurchase = { id: "pur-b", companyId: COMPANY_B, voidedAt: null };
+    const foreignPurchase = { id: "pur-b", companyId: COMPANY_B, voidedAt: null, payments: [] };
     vi.mocked(mockDb.purchase.findUnique).mockResolvedValue(foreignPurchase as never);
 
     const result = await voidPurchase("pur-b");
@@ -194,6 +202,7 @@ describe("purchase isolation", () => {
       companyId: COMPANY_A,
       voidedAt: null,
       paidByUserId: null,
+      payments: [],
     };
     vi.mocked(mockDb.purchase.findUnique).mockResolvedValue(ownPurchase as never);
     vi.mocked(mockDb.walletTransaction.findFirst).mockResolvedValue(null);
@@ -608,5 +617,67 @@ describe("bulk attendance isolation", () => {
     // emp-b is not in the userMap returned by findMany, so the action
     // should detect a foreign user and fail
     expect(result.success).toBe(false);
+  });
+});
+
+// ─── Phase 13: payment isolation ─────────────────────────────────────────────
+
+describe("purchase payment isolation", () => {
+  it("cannot add payment to another company's purchase", async () => {
+    // purchase.findFirst returns null → purchase not in company A
+    vi.mocked(mockDb.purchase.findFirst).mockResolvedValue(null);
+
+    const form = makeForm({
+      purchaseId: "pur-b",
+      amountRupees: "100",
+      paidDate: "2026-04-23",
+      paymentMethod: "CASH",
+      paidByUserId: "OWNER_DIRECT",
+    });
+
+    const result = await addPurchasePayment(null, form) as { success: false; error: string };
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/not found/i);
+    expect(mockDb.purchasePayment.create).not.toHaveBeenCalled();
+  });
+
+  it("cannot void a payment from another company", async () => {
+    // purchasePayment.findFirst returns null → not in company A
+    vi.mocked(mockDb.purchasePayment.findFirst).mockResolvedValue(null);
+
+    const result = await voidPurchasePayment("pay-b") as { success: false; error: string };
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/not found/i);
+    expect(mockDb.purchasePayment.update).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Phase 13: material isolation ────────────────────────────────────────────
+
+describe("material isolation", () => {
+  it("cannot see materials from another company (createMaterial scopes by company)", async () => {
+    // Simulate no conflict in company A
+    vi.mocked(mockDb.material.findFirst).mockResolvedValue(null);
+    vi.mocked(mockDb.material.create).mockResolvedValue({ id: "mat1" } as never);
+
+    const form = makeForm({ name: "Custom Block", unit: "nos" });
+    const result = await createMaterial(null, form);
+    expect(result.success).toBe(true);
+
+    // Verify the duplicate check is scoped to ownerA's companyId
+    const findCall = vi.mocked(mockDb.material.findFirst).mock.calls[0][0] as {
+      where: { companyId: string };
+    };
+    expect(findCall.where.companyId).toBe(COMPANY_A);
+  });
+
+  it("cannot delete a material from another company", async () => {
+    // material.findFirst returns null → not found in company A
+    vi.mocked(mockDb.material.findFirst).mockResolvedValue(null);
+
+    const result = await deleteMaterial("mat-b") as { success: false; error: string };
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/not found/i);
+    expect(mockDb.material.delete).not.toHaveBeenCalled();
   });
 });

@@ -13,12 +13,36 @@ const HEADERS = [
   "Amount (₹)",
   "Site",
   "Counterparty",
-  "Vendor",
+  "Vendor / Source",
   "Actor",
   "Logged By",
   "Note",
   "Voided",
 ];
+
+type LineItem = {
+  itemName: string;
+  quantity: { toString: () => string };
+  unit: string;
+  lineTotalPaise: bigint;
+};
+
+type PurchaseRow = {
+  id: string;
+  purchaseDate: Date;
+  totalPaise: bigint;
+  itemName: string | null;
+  quantity: { toString: () => string } | null;
+  unit: string | null;
+  note: string | null;
+  voidedAt: Date | null;
+  vendor: { name: string } | null;
+  sellerName: string | null;
+  destinationSite: { name: string } | null;
+  paidBy: { name: string } | null;
+  loggedBy: { name: string };
+  lineItems: LineItem[];
+};
 
 export async function GET() {
   let owner: Awaited<ReturnType<typeof requireOwner>>;
@@ -30,6 +54,9 @@ export async function GET() {
 
   const companyId = owner.effectiveCompanyId ?? owner.companyId;
   if (!companyId) return NextResponse.json({ error: "No company context" }, { status: 403 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyDb = db as any;
 
   const [walletTxns, purchases, transfersIn, incomes] = await Promise.all([
     db.walletTransaction.findMany({
@@ -43,16 +70,20 @@ export async function GET() {
       orderBy: { createdAt: "asc" },
     }),
 
-    db.purchase.findMany({
+    anyDb.purchase.findMany({
       where: { companyId },
       include: {
         vendor: { select: { name: true } },
         destinationSite: { select: { name: true } },
         loggedBy: { select: { name: true } },
         paidBy: { select: { name: true } },
+        lineItems: {
+          orderBy: { displayOrder: "asc" },
+          select: { itemName: true, quantity: true, unit: true, lineTotalPaise: true },
+        },
       },
       orderBy: { purchaseDate: "asc" },
-    }),
+    }) as Promise<PurchaseRow[]>,
 
     db.materialTransfer.findMany({
       where: { companyId },
@@ -97,22 +128,51 @@ export async function GET() {
   }
 
   for (const p of purchases) {
-    rows.push([
-      csvDate(p.purchaseDate),
-      "PURCHASE",
-      "MATERIALS",
-      p.itemName,
-      Number(p.quantity).toFixed(4),
-      p.unit,
-      (Number(p.totalPaise) / 100).toFixed(2),
-      p.destinationSite?.name ?? "",
-      "",
-      p.vendor.name,
-      p.paidBy?.name ?? "Owner Direct",
-      p.loggedBy.name,
-      p.note ?? "",
-      p.voidedAt ? "Yes" : "No",
-    ]);
+    const sourceLabel = p.vendor?.name ?? p.sellerName ?? "LOCAL";
+    const voided = p.voidedAt ? "Yes" : "No";
+    const siteName = p.destinationSite?.name ?? "";
+    const actorName = p.paidBy?.name ?? "Owner Direct";
+    const loggedByName = p.loggedBy.name;
+
+    if (p.lineItems.length > 0) {
+      // One row per line item
+      for (const li of p.lineItems) {
+        rows.push([
+          csvDate(p.purchaseDate),
+          "PURCHASE",
+          "MATERIALS",
+          li.itemName,
+          Number(li.quantity.toString()).toFixed(4),
+          li.unit,
+          (Number(li.lineTotalPaise) / 100).toFixed(2),
+          siteName,
+          "",
+          sourceLabel,
+          actorName,
+          loggedByName,
+          p.note ?? "",
+          voided,
+        ]);
+      }
+    } else {
+      // Legacy single-item
+      rows.push([
+        csvDate(p.purchaseDate),
+        "PURCHASE",
+        "MATERIALS",
+        p.itemName ?? "",
+        p.quantity ? Number(p.quantity.toString()).toFixed(4) : "",
+        p.unit ?? "",
+        (Number(p.totalPaise) / 100).toFixed(2),
+        siteName,
+        "",
+        sourceLabel,
+        actorName,
+        loggedByName,
+        p.note ?? "",
+        voided,
+      ]);
+    }
   }
 
   for (const t of transfersIn) {

@@ -41,11 +41,17 @@ export default async function VendorDetailPage({ params, searchParams }: Props) 
       where: { vendorId: id, companyId, voidedAt: null },
     }),
     db.purchase.count({ where: { vendorId: id, companyId, voidedAt: null } }),
-    db.purchase.findMany({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (db as any).purchase.findMany({
       where: { vendorId: id, companyId, voidedAt: null },
       include: {
         destinationSite: { select: { id: true, name: true } },
         paidBy: { select: { name: true } },
+        lineItems: {
+          orderBy: { displayOrder: "asc" },
+          select: { itemName: true, quantity: true, unit: true },
+          take: 2,
+        },
       },
       orderBy: { purchaseDate: "desc" },
       skip: (page - 1) * PAGE_SIZE,
@@ -171,7 +177,17 @@ export default async function VendorDetailPage({ params, searchParams }: Props) 
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {purchases.map((p) => (
+                  {purchases.map((p: any) => {
+                    const firstItem = p.lineItems?.[0];
+                    const moreCount = (p.lineItems?.length ?? 0) > 1 ? p.lineItems.length - 1 : 0;
+                    const itemLabel = firstItem
+                      ? moreCount > 0 ? `${firstItem.itemName} +${moreCount} more` : firstItem.itemName
+                      : (p.itemName ?? "(items)");
+                    const qtyLabel = firstItem
+                      ? Number(firstItem.quantity.toString()).toFixed(2)
+                      : p.quantity ? Number(p.quantity.toString()).toFixed(2) : "—";
+                    const unitLabel = firstItem ? firstItem.unit : (p.unit ?? "");
+                    return (
                     <tr key={p.id} className="hover:bg-muted/30">
                       <td className="px-3 py-2 text-muted-foreground text-xs">
                         {p.purchaseDate.toLocaleDateString("en-IN", {
@@ -181,13 +197,15 @@ export default async function VendorDetailPage({ params, searchParams }: Props) 
                         })}
                       </td>
                       <td className="px-3 py-2 font-medium">
-                        <div>{p.itemName}</div>
+                        <Link href={`/purchases/${p.id}`} className="hover:underline">
+                          {itemLabel}
+                        </Link>
                         <div className="text-xs text-muted-foreground">
-                          {p.unit}
+                          {unitLabel}
                         </div>
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
-                        {Number(p.quantity).toFixed(2)}
+                        {qtyLabel}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">
                         {formatINR(p.totalPaise)}
@@ -228,7 +246,8 @@ export default async function VendorDetailPage({ params, searchParams }: Props) 
                         )}
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>

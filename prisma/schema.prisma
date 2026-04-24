@@ -72,6 +72,25 @@ enum AttendanceMethod {
   MANUAL
 }
 
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum PurchaseType {
+  VENDOR
+  LOCAL
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  BANK_TRANSFER
+  CHEQUE
+  OTHER
+}
+
 enum OwnershipType {
   OWNED
   RENTED
@@ -108,6 +127,9 @@ model Company {
   assets              Asset[]
   assetAllocations    AssetAllocation[]
   payrollNotes        PayrollNote[]
+  purchasePayments    PurchasePayment[]
+  materials           Material[]
+  purchaseLineItems   PurchaseLineItem[]
 }
 
 model User {
@@ -150,6 +172,9 @@ model User {
   voidedAllocations                AssetAllocation[]     @relation("VoidedAllocations")
   payrollNotesAsSubject            PayrollNote[]         @relation("PayrollNoteSubject")
   payrollNotesAsCreator            PayrollNote[]         @relation("PayrollNoteCreator")
+  purchasePaymentsAsPayer          PurchasePayment[]     @relation("PaymentPayers")
+  purchasePaymentsAsLogger         PurchasePayment[]     @relation("PaymentLoggers")
+  purchasePaymentsAsVoider         PurchasePayment[]     @relation("PaymentVoiders")
 
   @@unique([companyId, username])
   @@index([companyId])
@@ -234,32 +259,38 @@ model WalletTransaction {
 }
 
 model Purchase {
-  id                String   @id @default(cuid())
+  id                String        @id @default(cuid())
   companyId         String
-  company           Company  @relation(fields: [companyId], references: [id])
-  vendorId          String
-  vendor            Vendor   @relation(fields: [vendorId], references: [id])
-  itemName          String
-  quantity          Decimal  @db.Decimal(14, 4)
-  unit              String
-  ratePaise         BigInt
-  discountPercent   Decimal  @default(0) @db.Decimal(5, 2)
-  gstPercent        Decimal  @default(0) @db.Decimal(5, 2)
+  company           Company       @relation(fields: [companyId], references: [id])
+  purchaseType      PurchaseType  @default(VENDOR)
+  vendorId          String?       // null for LOCAL purchases
+  vendor            Vendor?       @relation(fields: [vendorId], references: [id])
+  sellerName        String?       // free-text seller name for LOCAL purchases
+  // Legacy single-item columns — kept nullable for rollback window; drop in Phase 15
+  itemName          String?
+  quantity          Decimal?      @db.Decimal(14, 4)
+  unit              String?
+  ratePaise         BigInt?
+  discountPercent   Decimal?      @default(0) @db.Decimal(5, 2)
+  gstPercent        Decimal?      @default(0) @db.Decimal(5, 2)
   totalPaise        BigInt
   destinationSiteId String?
-  destinationSite   Site?    @relation("DestinationPurchases", fields: [destinationSiteId], references: [id])
+  destinationSite   Site?         @relation("DestinationPurchases", fields: [destinationSiteId], references: [id])
   paidByUserId      String?
-  paidBy            User?    @relation("PayerPurchases", fields: [paidByUserId], references: [id])
+  paidBy            User?         @relation("PayerPurchases", fields: [paidByUserId], references: [id])
+  paymentStatus     PaymentStatus @default(UNPAID)
   purchaseDate      DateTime
   billPhotoUrl      String?
   billPhotoPublicId String?
   note              String?
   loggedById        String
-  loggedBy          User     @relation("LoggedPurchases", fields: [loggedById], references: [id])
+  loggedBy          User          @relation("LoggedPurchases", fields: [loggedById], references: [id])
   voidedAt          DateTime?
   voidedById        String?
-  voidedBy          User?    @relation("VoidedPurchases", fields: [voidedById], references: [id])
-  createdAt         DateTime @default(now())
+  voidedBy          User?         @relation("VoidedPurchases", fields: [voidedById], references: [id])
+  createdAt         DateTime      @default(now())
+  payments          PurchasePayment[]
+  lineItems         PurchaseLineItem[]
 
   @@index([destinationSiteId])
   @@index([vendorId])
@@ -475,4 +506,68 @@ model PayrollNote {
   createdAt   DateTime @default(now())
 
   @@index([companyId, userId])
+}
+
+model PurchasePayment {
+  id                   String        @id @default(cuid())
+  companyId            String
+  company              Company       @relation(fields: [companyId], references: [id])
+  purchaseId           String
+  purchase             Purchase      @relation(fields: [purchaseId], references: [id])
+  amountPaidPaise      BigInt
+  paidDate             DateTime      @db.Date
+  paidByUserId         String?
+  paidBy               User?         @relation("PaymentPayers", fields: [paidByUserId], references: [id])
+  paymentMethod        PaymentMethod
+  paymentProofUrl      String?
+  paymentProofPublicId String?
+  notes                String?
+  loggedById           String
+  loggedBy             User          @relation("PaymentLoggers", fields: [loggedById], references: [id])
+  voidedAt             DateTime?
+  voidedById           String?
+  voidedBy             User?         @relation("PaymentVoiders", fields: [voidedById], references: [id])
+  relatedWalletTxnId   String?
+  createdAt            DateTime      @default(now())
+
+  @@index([companyId])
+  @@index([purchaseId])
+}
+
+model Material {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  name      String
+  unit      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lineItems PurchaseLineItem[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model PurchaseLineItem {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  purchaseId      String
+  purchase        Purchase  @relation(fields: [purchaseId], references: [id])
+  itemName        String
+  quantity        Decimal   @db.Decimal(14, 4)
+  unit            String
+  ratePaise       BigInt
+  discountPercent Decimal   @db.Decimal(5, 2) @default(0)
+  gstPercent      Decimal   @db.Decimal(5, 2) @default(0)
+  lineTotalPaise  BigInt
+  displayOrder    Int       @default(0)
+  materialId      String?
+  material        Material? @relation(fields: [materialId], references: [id])
+  createdAt       DateTime  @default(now())
+
+  @@index([purchaseId])
+  @@index([companyId])
 }
