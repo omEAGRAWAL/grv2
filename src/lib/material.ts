@@ -32,10 +32,31 @@ export async function getAvailableMaterial(
   companyId: string
 ): Promise<AvailableItem[]> {
   // ── 1. Purchases going to this source ────────────────────────────────────
-  const purchaseRows = await db.purchase.findMany({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const purchaseRows = await (db as any).purchase.findMany({
     where: { destinationSiteId: sourceId, companyId, voidedAt: null },
-    select: { itemName: true, unit: true, quantity: true, totalPaise: true },
-  });
+    select: {
+      itemName: true,
+      unit: true,
+      quantity: true,
+      totalPaise: true,
+      lineItems: {
+        select: { itemName: true, unit: true, quantity: true, lineTotalPaise: true },
+        orderBy: { displayOrder: "asc" },
+      },
+    },
+  }) as Array<{
+    itemName: string | null;
+    unit: string | null;
+    quantity: { toString: () => string } | null;
+    totalPaise: bigint;
+    lineItems: Array<{
+      itemName: string;
+      unit: string;
+      quantity: { toString: () => string };
+      lineTotalPaise: bigint;
+    }>;
+  }>;
 
   // ── 2. Material transfers IN to this source (only possible for real sites) ─
   const transfersIn =
@@ -52,15 +73,25 @@ export async function getAvailableMaterial(
       : [];
 
   // ── 3. Material transfers OUT from this source ───────────────────────────
-  const transfersOut = await db.materialTransfer.findMany({
-    where: { fromSiteId: sourceId, companyId, voidedAt: null },
-    select: {
-      itemName: true,
-      unit: true,
-      quantity: true,
-      costMovedPaise: true,
-    },
-  });
+  const transfersOut = sourceId !== null
+    ? await db.materialTransfer.findMany({
+        where: { fromSiteId: sourceId, companyId, voidedAt: null },
+        select: {
+          itemName: true,
+          unit: true,
+          quantity: true,
+          costMovedPaise: true,
+        },
+      })
+    : await db.materialTransfer.findMany({
+        where: { fromSiteId: null, companyId, voidedAt: null },
+        select: {
+          itemName: true,
+          unit: true,
+          quantity: true,
+          costMovedPaise: true,
+        },
+      });
 
   // ── Merge by itemName ─────────────────────────────────────────────────────
   // Map<itemName, { unit, qty: Decimal, costPaise: bigint }>
@@ -95,12 +126,15 @@ export async function getAvailableMaterial(
   }
 
   for (const p of purchaseRows) {
-    credit(
-      p.itemName,
-      p.unit,
-      new Decimal(p.quantity.toString()),
-      p.totalPaise
-    );
+    if (p.lineItems.length > 0) {
+      // Phase 14: one credit per line item
+      for (const li of p.lineItems) {
+        credit(li.itemName, li.unit, new Decimal(li.quantity.toString()), li.lineTotalPaise);
+      }
+    } else if (p.itemName && p.unit && p.quantity != null) {
+      // Legacy single-item
+      credit(p.itemName, p.unit, new Decimal(p.quantity.toString()), p.totalPaise);
+    }
   }
 
   for (const t of transfersIn) {
