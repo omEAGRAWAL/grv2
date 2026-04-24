@@ -28,6 +28,8 @@ const OWNER_LINKS = [
   { href: "/attendance", label: "Attendance" },
   { href: "/employees", label: "Employees" },
   { href: "/vendors", label: "Vendors" },
+  { href: "/purchases", label: "Purchases" },
+  { href: "/materials", label: "Materials" },
   { href: "/reports", label: "Reports" },
 ];
 
