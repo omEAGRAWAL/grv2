@@ -4,7 +4,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getWalletBalance } from "@/lib/wallet";
-import { ExpenseForm } from "@/components/expense/expense-form";
+import { ExpenseFormPage } from "@/components/expense/expense-form-page";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Log Expense — ConstructHub" };
@@ -12,7 +12,6 @@ export const metadata: Metadata = { title: "Log Expense — ConstructHub" };
 type Props = { searchParams: Promise<{ site?: string }> };
 
 async function getDefaultSiteId(userId: string, companyId: string): Promise<string | undefined> {
-  // Try last-used site from this user's most recent non-voided txn (scoped to company)
   const last = await db.walletTransaction.findFirst({
     where: { actorUserId: userId, companyId, siteId: { not: null }, voidedAt: null },
     orderBy: { createdAt: "desc" },
@@ -20,7 +19,6 @@ async function getDefaultSiteId(userId: string, companyId: string): Promise<stri
   });
   if (last?.siteId) return last.siteId;
 
-  // Fall back to first active site in this company
   const first = await db.site.findFirst({
     where: { status: "ACTIVE", companyId },
     orderBy: { createdAt: "asc" },
@@ -56,7 +54,6 @@ export default async function ExpenseNewPage({ searchParams }: Props) {
 
   const resolvedDefaultSiteId = sp.site ?? defaultSiteId;
 
-  // Fetch wallet balances for the form preview (owner needs all actors' balances)
   const actorIds =
     user.role === "OWNER" ? allActiveUsers.map((u) => u.id) : [user.id];
   const balanceEntries = await Promise.all(
@@ -66,7 +63,6 @@ export default async function ExpenseNewPage({ searchParams }: Props) {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <div className="sticky top-0 z-10 bg-background border-b px-4 py-3 flex items-center gap-3">
         <Link
           href="/me"
@@ -86,7 +82,7 @@ export default async function ExpenseNewPage({ searchParams }: Props) {
             </p>
           </div>
         ) : (
-          <ExpenseForm
+          <ExpenseFormPage
             sites={sites}
             defaultSiteId={resolvedDefaultSiteId}
             actorUsers={allActiveUsers}

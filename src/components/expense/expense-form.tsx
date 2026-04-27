@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,7 @@ import { BillPhotoUpload } from "./bill-photo-upload";
 import { toPaise, formatINR } from "@/lib/money";
 import { createExpense } from "@/app/actions/expenses";
 
-type ActionResult = { success: false; error: string };
+type ActionResult = { success: false; error: string } | { success: true; redirectTo: string };
 
 type Site = { id: string; name: string };
 type User = { id: string; name: string };
@@ -30,6 +30,7 @@ type Props = {
   currentUserId: string;
   walletBalances: Record<string, string>; // userId → paise as string
   isOwner: boolean;
+  onSuccess?: (redirectTo: string) => void;
 };
 
 function computePreview(
@@ -56,6 +57,7 @@ export function ExpenseForm({
   currentUserId,
   walletBalances,
   isOwner,
+  onSuccess,
 }: Props) {
   const [amount, setAmount] = useState("");
   const [siteId, setSiteId] = useState(defaultSiteId ?? (sites[0]?.id ?? ""));
@@ -70,6 +72,12 @@ export function ExpenseForm({
     createExpense,
     null
   );
+
+  useEffect(() => {
+    if (state && state.success && onSuccess) {
+      onSuccess(state.redirectTo);
+    }
+  }, [state, onSuccess]);
 
   // Convert human amount to paise string for the hidden field
   let amountPaiseStr = "";
@@ -104,7 +112,7 @@ export function ExpenseForm({
         <input type="hidden" name="onBehalfOfUserId" value={onBehalfOf} />
       )}
 
-      {state && (
+      {state && !state.success && (
         <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0" />
           {state.error}

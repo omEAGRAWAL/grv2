@@ -4,7 +4,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getWalletBalance } from "@/lib/wallet";
-import { TransferForm } from "@/components/transfer/transfer-form";
+import { TransferFormPage } from "@/components/transfer/transfer-form-page";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Send Money — ConstructHub" };
@@ -40,7 +40,7 @@ export default async function TransferNewPage() {
       </div>
 
       <div className="p-4 pb-24 max-w-md mx-auto">
-        <TransferForm
+        <TransferFormPage
           activeUsers={activeUsers}
           currentUserId={user.id}
           isOwner={user.role === "OWNER"}

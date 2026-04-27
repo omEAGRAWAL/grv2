@@ -98,7 +98,7 @@ describe("createTransfer", () => {
     );
 
     expect(result?.success).toBe(false);
-    expect(result?.error).toMatch(/yourself/i);
+    expect(result && !result.success ? result.error : null).toMatch(/yourself/i);
     expect(vi.mocked(db.walletTransaction.create)).not.toHaveBeenCalled();
   });
 
@@ -112,7 +112,7 @@ describe("createTransfer", () => {
     );
 
     expect(result?.success).toBe(false);
-    expect(result?.error).toMatch(/insufficient/i);
+    expect(result && !result.success ? result.error : null).toMatch(/insufficient/i);
   });
 
   it("employee cannot specify a different fromUserId (server enforces)", async () => {
@@ -126,7 +126,7 @@ describe("createTransfer", () => {
     );
 
     expect(result?.success).toBe(false);
-    expect(result?.error).toMatch(/can only transfer from your own/i);
+    expect(result && !result.success ? result.error : null).toMatch(/can only transfer from your own/i);
     expect(vi.mocked(db.walletTransaction.create)).not.toHaveBeenCalled();
   });
 
@@ -139,6 +139,6 @@ describe("createTransfer", () => {
     );
 
     expect(result?.success).toBe(false);
-    expect(result?.error).toMatch(/greater than/i);
+    expect(result && !result.success ? result.error : null).toMatch(/greater than/i);
   });
 });

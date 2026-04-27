@@ -155,7 +155,7 @@ describe("wallet transfer isolation", () => {
     const result = await createTransfer(null, form);
 
     expect(result.success).toBe(false);
-    expect(result.error).toMatch(/not found/i);
+    expect(!result.success ? result.error : null).toMatch(/not found/i);
     expect(mockDb.walletTransaction.create).not.toHaveBeenCalled();
   });
 });

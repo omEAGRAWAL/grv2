@@ -70,7 +70,7 @@ describe("createExpense", () => {
     const result = await createExpense(null, makeForm(baseFields));
 
     expect(result?.success).toBe(false);
-    expect(result?.error).toMatch(/insufficient/i);
+    expect(result && !result.success ? result.error : null).toMatch(/insufficient/i);
     expect(vi.mocked(db.walletTransaction.create)).not.toHaveBeenCalled();
   });
 
@@ -82,7 +82,7 @@ describe("createExpense", () => {
     const result = await createExpense(null, makeForm(baseFields));
 
     expect(result?.success).toBe(false);
-    expect(result?.error).toMatch(/site/i);
+    expect(result && !result.success ? result.error : null).toMatch(/site/i);
   });
 
   it("owner logs on behalf: actorUserId=employee, loggedById=owner", async () => {
@@ -113,7 +113,7 @@ describe("createExpense", () => {
     );
 
     expect(result?.success).toBe(false);
-    expect(result?.error).toMatch(/owner/i);
+    expect(result && !result.success ? result.error : null).toMatch(/owner/i);
     expect(vi.mocked(db.walletTransaction.create)).not.toHaveBeenCalled();
   });
 

@@ -1,16 +1,15 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getWalletBalance } from "@/lib/wallet";
 
-type ActionResult = { success: false; error: string };
+type ActionResult = { success: false; error: string } | { success: true };
 
 export async function createTransfer(
   _prevState: ActionResult | null,
   formData: FormData
-): Promise<ActionResult | never> {
+): Promise<ActionResult> {
   let currentUser;
   try {
     currentUser = await getCurrentUser();
@@ -96,5 +95,5 @@ export async function createTransfer(
     });
   });
 
-  redirect("/me");
+  return { success: true };
 }

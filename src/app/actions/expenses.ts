@@ -1,13 +1,12 @@
 "use server";
 
 import { z } from "zod";
-import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getWalletBalance } from "@/lib/wallet";
 import type { ExpenseCategory } from "@prisma/client";
 
-type ActionResult = { success: false; error: string };
+type ActionResult = { success: false; error: string } | { success: true; redirectTo: string };
 
 const VALID_CATEGORIES: ExpenseCategory[] = [
   "MATERIALS",
@@ -34,7 +33,7 @@ const ExpenseSchema = z.object({
 export async function createExpense(
   _prevState: ActionResult | null,
   formData: FormData
-): Promise<ActionResult | never> {
+): Promise<ActionResult> {
   let currentUser;
   try {
     currentUser = await getCurrentUser();
@@ -113,9 +112,9 @@ export async function createExpense(
     });
   });
 
-  // Redirect: owner → site page; employee → /me
-  if (currentUser.role === "OWNER") {
-    redirect(`/sites/${parsed.data.siteId}`);
-  }
-  redirect("/me");
+  const redirectTo =
+    currentUser.role === "OWNER"
+      ? `/sites/${parsed.data.siteId}`
+      : "/me";
+  return { success: true, redirectTo };
 }

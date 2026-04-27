@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,7 @@ import { MoneyInput } from "@/components/money-input";
 import { toPaise, formatINR } from "@/lib/money";
 import { createTransfer } from "@/app/actions/transfers";
 
-type ActionResult = { success: false; error: string };
+type ActionResult = { success: false; error: string } | { success: true };
 
 type User = { id: string; name: string };
 
@@ -25,6 +25,7 @@ type Props = {
   currentUserId: string;
   isOwner: boolean;
   walletBalances: Record<string, string>; // userId → paise string
+  onSuccess?: () => void;
 };
 
 function computePreview(
@@ -49,6 +50,7 @@ export function TransferForm({
   currentUserId,
   isOwner,
   walletBalances,
+  onSuccess,
 }: Props) {
   const [fromUserId, setFromUserId] = useState(currentUserId);
   const [toUserId, setToUserId] = useState("");
@@ -58,6 +60,12 @@ export function TransferForm({
     createTransfer,
     null
   );
+
+  useEffect(() => {
+    if (state && state.success && onSuccess) {
+      onSuccess();
+    }
+  }, [state, onSuccess]);
 
   let amountPaiseStr = "";
   try {
@@ -85,7 +93,7 @@ export function TransferForm({
       <input type="hidden" name="amountPaise" value={amountPaiseStr} />
       <input type="hidden" name="fromUserId" value={fromUserId} />
 
-      {state && (
+      {state && !state.success && (
         <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0" />
           {state.error}

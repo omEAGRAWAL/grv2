@@ -3,6 +3,7 @@ import { getCurrentUser, getSession } from "@/lib/auth";
 import { AppNav } from "@/components/nav/app-nav";
 import { BottomTabBar } from "@/components/nav/bottom-tab-bar";
 import { QuickActionFab } from "@/components/nav/quick-action-fab";
+import { MobileHeader } from "@/components/nav/mobile-header";
 import { StopImpersonatingButton } from "@/components/super/stop-impersonating-button";
 
 // All routes in this group require an active session + live DB queries.
@@ -33,9 +34,10 @@ export default async function AppLayout({
           <StopImpersonatingButton />
         </div>
       )}
+      <MobileHeader />
       <AppNav user={user as { name: string; role: "OWNER" | "EMPLOYEE" }} />
       <main className="flex-1 pb-16 md:pb-0">{children}</main>
-      <BottomTabBar />
+      <BottomTabBar role={user.role} />
       <QuickActionFab />
     </div>
   );
