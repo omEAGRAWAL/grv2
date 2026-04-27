@@ -32,15 +32,10 @@ export interface UploadSignature {
  */
 export function getUploadSignature(folder: string): UploadSignature {
   const timestamp = Math.round(Date.now() / 1000);
-  const uploadPreset = getConfiguredUploadPreset();
 
-  const paramsToSign: Record<string, string | number> = {
-    folder,
-    timestamp,
-  };
-  if (uploadPreset) {
-    paramsToSign.upload_preset = uploadPreset;
-  }
+  // Signed uploads authenticate via signature — upload_preset is for unsigned uploads only.
+  // Including an upload_preset here would require that preset to exist in Cloudinary.
+  const paramsToSign: Record<string, string | number> = { folder, timestamp };
 
   const signature = cloudinary.utils.api_sign_request(
     paramsToSign,
@@ -53,7 +48,7 @@ export function getUploadSignature(folder: string): UploadSignature {
     apiKey: process.env.CLOUDINARY_API_KEY!,
     cloudName: process.env.CLOUDINARY_CLOUD_NAME!,
     folder,
-    uploadPreset,
+    uploadPreset: null,
   };
 }
 
