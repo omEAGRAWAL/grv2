@@ -120,8 +120,10 @@ export default async function PurchasesPage({ searchParams }: Props) {
     }) as Promise<PurchaseRow[]>,
     db.purchase.findMany({
       where: { companyId, voidedAt: null, paymentStatus: { in: ["UNPAID", "PARTIAL"] } },
-      include: { payments: { where: { voidedAt: null }, select: { amountPaidPaise: true } } },
-      select: { totalPaise: true, payments: true },
+      select: {
+        totalPaise: true,
+        payments: { where: { voidedAt: null }, select: { amountPaidPaise: true } },
+      },
     }),
   ]);
 
